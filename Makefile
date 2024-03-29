@@ -2,8 +2,8 @@ CC=gcc
 CFLAGS= -g -std=c11 -pedantic -Wall -Wextra
 .PHONY: clean run
 
-client:
-	$(CC) $(CFLAGS) $@.c -o $@
+client: messages.c udp/udp.c helpers.c
+	$(CC) $(CFLAGS) $@.c $^ -o $@
 
 clean:
 	rm -f client

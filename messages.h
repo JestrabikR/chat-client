@@ -2,6 +2,7 @@
 #define STRUCTS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define USERNAME_MAX_LEN 21 //TODO: 20 + 1 na '\0'?
 #define CHANNEL_ID_MAX_LEN 21
@@ -9,7 +10,7 @@
 #define DISPLAY_NAME_MAX_LEN 21
 #define MESSAGE_CONTENT_MAX_LEN 1401
 
-typedef enum MessageType {
+typedef enum {
     CONFIRM = 0x0,
     REPLY = 0x01,
     AUTH = 0x02,
@@ -32,7 +33,7 @@ typedef struct {
     char message_content[MESSAGE_CONTENT_MAX_LEN];
 } ReplyMessage;
 
-typedef struct {
+typedef struct{
     MessageType msg_type;
     uint16_t message_id;
     char username[USERNAME_MAX_LEN];
@@ -66,5 +67,10 @@ typedef struct {
     MessageType msg_type;
     uint16_t message_id;
 } ByeMessage;
+
+/**
+ * @brief on every call returns value and increments it by one
+*/
+uint16_t get_message_id();
 
 #endif
