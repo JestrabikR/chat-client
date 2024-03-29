@@ -10,6 +10,8 @@
 #include <stdbool.h>
 
 #include "client.h"
+#include "messages.h"
+#include "communication.h"
 
 #define PRINT_LINE() printf("%d\n", __LINE__) //REMOVE for testing only
 
@@ -35,7 +37,7 @@ int udp_connect(int socket_fd, const char *ip, int port) {
     struct sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_port = htons(port);
-    inet_pton(AF_INET, ip, &address.sin_addr.s_addr); //TODO: po testovani nahradit za ip_address
+    inet_pton(AF_INET, ip, &address.sin_addr.s_addr);
     
     int ret_value = connect(socket_fd, (struct sockaddr *)&address, sizeof(address));
     if (ret_value == -1) return 1;
@@ -117,7 +119,6 @@ int parse_arguments(int argc, char *argv[], CmdArguments *arguments) {
                 return 1;
         }
 
-    printf("UDP: %d, IP: %s, PORT: %d, Time: %d, Transmission: %d\n", arguments->is_udp, arguments->server_ip_or_hostname, arguments->server_port, arguments->udp_confirmation_timeout, arguments->max_udp_retransmissions);
     return 0;
 }
 
@@ -128,7 +129,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    char *hostname = "anton5.fit.vutbr.cz"; //TODO: REMOVE
     struct in_addr *ip_address;
 
     int ret_value;
@@ -137,11 +137,8 @@ int main(int argc, char *argv[]) {
     
     ret_value = parse_arguments(argc, argv, arguments);
     if (ret_value == 1) exit(99); //TODO
-    printf("%s\n", "OKAY");
 
-    printf("UDP: %d, IP: %s, PORT: %d, Time: %d, Transmission: %d\n", arguments->is_udp, arguments->server_ip_or_hostname, arguments->server_port, arguments->udp_confirmation_timeout, arguments->max_udp_retransmissions);
-
-    if (get_ip_address(hostname, &ip_address) == 1) exit(99); //TODO: handle correctly
+    if (get_ip_address(arguments->server_ip_or_hostname, &ip_address) == 1) exit(99); //TODO: handle correctly
 
     int socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (socket_fd == -1) exit(99); //TODO: handle
@@ -168,29 +165,32 @@ int main(int argc, char *argv[]) {
     char *msg = "this is a message from client";
 
     //TODO: proc to pise connected i kdyz ten server nebezi?
-    ret_value = udp_connect(socket_fd, IP, PORT);
+    ret_value = udp_connect(socket_fd,
+                            inet_ntoa(*ip_address),
+                            arguments->server_port);
     if (ret_value == 1) return 1; //TODO
 
     ssize_t result = send(socket_fd, msg, strlen(msg), 0);
     if (result == -1) return 1; //TODO
 
-    int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-    if (event_count == -1) exit(99); //TODO
+    // int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+    // if (event_count == -1) exit(99); //TODO
 
-    if (events[0].data.fd == stdin_fd) {
-        char line[STDIN_BUFF_SIZE];
-        fgets(line, STDIN_BUFF_SIZE, stdin);
-        line[strcspn(line, "\n")] = '\0';
-        printf("stdin event happened first: '%s'\n", line);
-    } else {
-        char response[RES_BUFF_SIZE];
-        ret_value = recv(socket_fd, response, RES_BUFF_SIZE, 0);
-        //TODO: na konci response jsou spatne znaky
-        if (ret_value == -1) exit(99); //TODO
-        if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
-        printf("socket event happened first: '%s'\n", response);
-    }
+    // if (events[0].data.fd == stdin_fd) {
+    //     char line[STDIN_BUFF_SIZE];
+    //     fgets(line, STDIN_BUFF_SIZE, stdin);
+    //     line[strcspn(line, "\n")] = '\0';
+    //     printf("stdin event happened first: '%s'\n", line);
+    // } else {
+    //     char response[RES_BUFF_SIZE];
+    //     ret_value = recv(socket_fd, response, RES_BUFF_SIZE, 0);
+    //     //TODO: na konci response jsou spatne znaky
+    //     if (ret_value == -1) exit(99); //TODO
+    //     if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
+    //     printf("socket event happened first: '%s'\n", response);
+    // }
 
+    free(arguments);
     int epoll_closed = close(epoll_fd);
     int socket_closed = close(epoll_fd);
     if (epoll_closed != 0 || socket_closed != 0) exit(99); //TODO
