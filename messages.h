@@ -11,13 +11,13 @@
 #define MESSAGE_CONTENT_MAX_LEN 1401
 
 typedef enum {
-    CONFIRM = 0x0,
-    REPLY = 0x01,
-    AUTH = 0x02,
-    JOIN = 0x03,
-    MSG = 0x04,
-    ERR	= 0xFE,
-    BYE	= 0xFF
+    MT_CONFIRM = 0x0,
+    MT_REPLY = 0x01,
+    MT_AUTH = 0x02,
+    MT_JOIN = 0x03,
+    MT_MSG = 0x04,
+    MT_ERR	= 0xFE,
+    MT_BYE	= 0xFF
 } MessageType;
 
 typedef struct {
@@ -36,10 +36,9 @@ typedef struct {
 typedef struct{
     MessageType msg_type;
     uint16_t message_id;
-    char username[USERNAME_MAX_LEN];
-    //TODO: jak se tam dodelaji ty separujici 0?
-    char display_name[DISPLAY_NAME_MAX_LEN];
-    char secret[SECRET_MAX_LEN];
+    char *username; //TODO: predelat na dynamicky alokovane char[] VSECHNO
+    char *display_name;
+    char *secret;
 } AuthMessage;
 
 typedef struct {
@@ -67,10 +66,5 @@ typedef struct {
     MessageType msg_type;
     uint16_t message_id;
 } ByeMessage;
-
-/**
- * @brief on every call returns value and increments it by one
-*/
-uint16_t get_message_id();
 
 #endif

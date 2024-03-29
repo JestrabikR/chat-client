@@ -33,4 +33,16 @@ void print_help();
 */
 int parse_arguments(int argc, char *argv[], CmdArguments *arguments);
 
+char *ltrim(char *s);
+
+char *rtrim(char *s);
+
+char *trim(char *s);
+
+/**
+ * @returns Returns nonzero if line is a string containing only whitespace (or is empty)
+*/ 
+int is_empty (char *line);
+
+
 #endif

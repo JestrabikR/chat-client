@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include "helpers.h"
 
 int get_ip_address(char *hostname, struct in_addr **ip_address) {
@@ -64,3 +65,41 @@ int parse_arguments(int argc, char *argv[], CmdArguments *arguments) {
 
     return 0;
 }
+
+char *ltrim(char *s)
+{
+    while(isspace(*s)) s++;
+    return s;
+}
+
+char *rtrim(char *s)
+{
+    char* back = s + strlen(s);
+    while(isspace(*--back));
+    *(back+1) = '\0';
+    return s;
+}
+
+char *trim(char *s)
+{
+    return rtrim(ltrim(s)); 
+}
+
+int is_empty (char *line)
+{
+  int is_blank = 1;
+
+  // Iterate through each character.
+  for (char *ch = line; *ch != '\0'; ++ch)
+  {
+    if (!isspace(*ch))
+    {
+      // Found a non-whitespace character.
+      is_blank = 0;
+      break;
+    }
+  }
+
+  return is_blank;
+}
+
