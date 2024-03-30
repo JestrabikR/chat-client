@@ -30,7 +30,7 @@ CommandType get_command_type(char *command_str);
  * @brief returns correct command in parameter
  * @returns 0 on success, 1 on error
 */
-int parse_command(char *line, CommandType cmd_type, Command *command, char *display_name);
+int parse_command(char *line, CommandType cmd_type, Command *command, char *disp_name);
 
 int send_message_from_command(Command *command, int socket_fd);
 
