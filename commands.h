@@ -34,6 +34,15 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
 
 int send_message_from_command(Command *command, int socket_fd);
 
-void free_command(Command *command);
+/**
+ * @return 0 on success, 1 if wrong command is passed
+*/
+int free_command(Command *command);
+
+/**
+ * @brief allocates and arranges message_string to send
+ * @returns 0 on success, 1 on error
+*/
+int create_msg_string_from_command(Command *command, char **message_string, int *msg_size);
 
 #endif

@@ -141,7 +141,81 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
     return 0;
 }
 
-void free_command(Command *command) {
+int create_msg_string_from_command(Command *command, char **message_string, int *msg_size) {
+    size_t message_size;
+    switch (command->command_type) {
+        case CMD_AUTH: {
+            AuthMessage msg = command->auth_message;
+            message_size = sizeof(msg.message_id) +
+                sizeof(msg.msg_type) +
+                strlen(msg.display_name) + 1 +
+                strlen(msg.username) + 1 +
+                strlen(msg.secret) + 1;
+            
+            *message_string = (char *)malloc(message_size);         
+            if (*message_string == NULL)
+                return 1; //TODO: asi jinak ukoncit at poznam ze je to malloc fail
+
+            //TODO: msg_type asi neni na 2 byty
+            //snprintf(*message_string, message_size, "%x%2hhx%s%s%s", msg.msg_type & 0xFFFF,msg.message_id, msg.username, msg.secret, msg.display_name);
+            // char test[1] = msg.msg_type & 0xFF;
+            // printf("%02x\n",test);
+            // strncat(*message_string, (char *)msg.msg_type, sizeof(msg.msg_type));
+            // printf("ok\n");
+            // strncat(*message_string, (char *)(msg.message_id & 0xFFFF), sizeof(msg.message_id));
+            // strncat(*message_string, msg.username, strlen(msg.username) + 1);
+            // strncat(*message_string, msg.display_name, strlen(msg.display_name) + 1);
+            // strncat(*message_string, msg.secret, strlen(msg.secret) + 1);
+
+            // Kopírování hodnot z AuthMessage do pole bytů
+            char *ptr = *message_string;
+
+            // Kopírování msg_type (1B)
+            memcpy(ptr, &(msg.msg_type), sizeof(msg.msg_type));
+            ptr += sizeof(msg.msg_type);
+
+            // Kopírování message_id (2B)
+            uint16_t message_id_reversed = htons(msg.message_id);
+            memcpy(ptr, &message_id_reversed, sizeof(message_id_reversed));
+            ptr += sizeof(message_id_reversed);
+
+            // Kopírování username (nB)
+            strcpy(ptr, msg.username);
+            ptr += strlen(msg.username) + 1;
+
+            // Kopírování display_name (nB)
+            strcpy(ptr, msg.display_name);
+            ptr += strlen(msg.display_name) + 1;
+
+            // Kopírování secret (nB)
+            strcpy(ptr, msg.secret);
+            ptr += strlen(msg.secret) + 1;
+
+            printf("strlen: %d\n", strlen(*message_string));
+
+            *msg_size = message_size;
+
+            printf("MS: %d\n", *msg_size);
+            for (int i = 0; i < message_size; i++) {
+                printf("%02X ", (*message_string)[i]); // Vypíše každý byte pole jako hexadecimální číslo
+            }
+
+            break;
+        }
+        case CMD_JOIN:
+            break;
+
+        case CMD_MESSAGE:
+            break;
+
+        default:
+            return 1;
+    }
+
+    return 0;
+}
+
+int free_command(Command *command) {
     switch (command->command_type) {
         case CMD_AUTH:
             free(command->auth_message.username);
@@ -170,13 +244,24 @@ void free_command(Command *command) {
 uint16_t message_id = 0;
 
 int send_message_from_command(Command *command, int socket_fd) {
-    printf("t: %d\n", command->command_type);
     ssize_t result;
     switch (command->command_type) {
         case CMD_AUTH:
             command->auth_message.message_id = message_id++;
-            result = send(socket_fd, &command->auth_message, sizeof(command->auth_message), 0);
-            if (result == -1) return 1;
+        
+            char *message_string;
+            int msg_size;
+            create_msg_string_from_command(command, &message_string, &msg_size);
+
+            printf("SIZEOF MSG_STR: %d", msg_size);
+
+            result = send(socket_fd, message_string, msg_size, 0);
+            if (result == -1) {
+                free(message_string);
+                return 1;
+            }
+            free(message_string);
+            
             printf("SENT AUTH\n");
             break;
         case CMD_JOIN:
