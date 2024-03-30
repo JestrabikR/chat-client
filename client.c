@@ -103,8 +103,11 @@ int main(int argc, char *argv[]) {
                 continue;
 
             if (send_message_from_command(&command, socket_fd) == 1) {
+                free_command(&command);
                 return 1;//TODO
             }
+            
+            free_command(&command);
 
             printf("stdin event happened first: '%s'\n", line);
         } else {

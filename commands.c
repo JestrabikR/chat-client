@@ -103,10 +103,10 @@ int parse_message_command(char *command_str, Message *msg, char *display_name) {
 
 int parse_command(char *line, CommandType cmd_type, Command *command, char *display_name) {
     command->command_type = cmd_type;
-    
+
     switch (cmd_type) {
         case CMD_AUTH:
-            //TODO: pozor tady se alokuje username, secret a display name - free po odeslani
+            //TODO: POZOR tady se alokuje username, secret a display name - free po odeslani
             if (parse_auth_command(line, &command->auth_message) == 1) {
                 fprintf(stderr, "ERR: Wrong command format\n");
                 return 1;
@@ -131,6 +131,32 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
                 return 1;
             }
             command->message.msg_type = MT_MSG;
+            break;
+
+        default:
+            fprintf(stderr, "ERR: Unknown command\n");
+            return 1;
+    }
+
+    return 0;
+}
+
+void free_command(Command *command) {
+    switch (command->command_type) {
+        case CMD_AUTH:
+            free(command->auth_message.username);
+            free(command->auth_message.display_name);               
+            free(command->auth_message.secret);               
+            break;
+
+        case CMD_JOIN:
+            free(command->join_message.channel_id);
+            free(command->join_message.display_name);  
+            break;
+
+        case CMD_MESSAGE:
+            free(command->message.message_content);
+            free(command->message.display_name);  
             break;
 
         default:

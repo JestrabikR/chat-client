@@ -34,4 +34,6 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
 
 int send_message_from_command(Command *command, int socket_fd);
 
+void free_command(Command *command);
+
 #endif
