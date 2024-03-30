@@ -24,12 +24,12 @@ void print_help() {
 }
 
 void print_command_help() {
-    const char *help_string = "/auth	{Username} {Secret} {DisplayName}	Sends AUTH message with the data provided from the command to the server (and correctly handles the Reply message), locally sets the DisplayName value (same as the /rename command)"
-        "/join	{ChannelID}	Sends JOIN message with channel name from the command to the server (and correctly handles the Reply message)"
-        "/rename	{DisplayName}	Locally changes the display name of the user to be sent with new messages/selected commands"
-        "/help		Prints out supported local commands with their parameters and a description";
-    
-    printf(help_string);
+    const char *help_command_string = "/auth	{Username} {Secret} {DisplayName}	Sends AUTH message with the data provided from the command to the server (and correctly handles the Reply message), locally sets the DisplayName value (same as the /rename command)\n\n"
+        "/join	{ChannelID}	Sends JOIN message with channel name from the command to the server (and correctly handles the Reply message)\n\n"
+        "/rename	{DisplayName}	Locally changes the display name of the user to be sent with new messages/selected commands\n\n"
+        "/help		Prints out supported local commands with their parameters and a description\n";
+
+    printf(help_command_string);
 }
 
 int parse_arguments(int argc, char *argv[], CmdArguments *arguments) {

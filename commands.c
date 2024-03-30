@@ -20,38 +20,11 @@ CommandType get_command_type(char *command_str) {
         return CMD_JOIN;
     } else if (strncmp("/rename ", command_str, 8) == 0) {
         return CMD_RENAME;
-    } else if (strncmp("/help ", command_str, 6) == 0) {
+    } else if (strncmp("/help", command_str, 5) == 0) {
         return CMD_HELP;
     } 
 
     return CMD_UNKNOWN;
-}
-
-int parse_command(char *line, CommandType cmd_type, Command *command) {
-    switch (cmd_type) {
-        case CMD_AUTH:
-            //TODO: pozor tady se alokuje username, secret a display name - free po odeslani
-            if (parse_auth_command(line, &command->auth_message) == 1) {
-                fprintf(stderr, "ERR: Wrong command format\n");
-                return 1;
-            }
-            command->auth_message.msg_type = MT_AUTH;
-            printf("PARSED AUTH");
-            break;
-        case CMD_JOIN:
-            break;
-        case CMD_RENAME:
-            break;
-        case CMD_MESSAGE:
-            break;
-        case CMD_HELP:
-            break;
-        default:
-            fprintf(stderr, "ERR: Unknown command\n");
-            return 1;
-    }
-
-    return 0;
 }
 
 /**
@@ -85,6 +58,31 @@ int parse_auth_command(char *command_str, AuthMessage *auth_msg) {
     strncpy(auth_msg->username, username, strlen(username) + 1);
     strncpy(auth_msg->display_name, display_name, strlen(display_name) + 1);
     strncpy(auth_msg->secret, secret, strlen(secret) + 1);
+
+    return 0;
+}
+
+int parse_command(char *line, CommandType cmd_type, Command *command) {
+    switch (cmd_type) {
+        case CMD_AUTH:
+            //TODO: pozor tady se alokuje username, secret a display name - free po odeslani
+            if (parse_auth_command(line, &command->auth_message) == 1) {
+                fprintf(stderr, "ERR: Wrong command format\n");
+                return 1;
+            }
+            command->auth_message.msg_type = MT_AUTH;
+            printf("PARSED AUTH");
+            break;
+        case CMD_JOIN:
+            printf("PARSING JOIN");
+            break;
+        case CMD_MESSAGE:
+            printf("PARSING MESSAGE");
+            break;
+        default:
+            fprintf(stderr, "ERR: Unknown command\n");
+            return 1;
+    }
 
     return 0;
 }

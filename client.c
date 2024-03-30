@@ -21,6 +21,8 @@ const unsigned int MAX_EVENTS = 3;
 const unsigned int RES_BUFF_SIZE = 128;
 const unsigned int STDIN_BUFF_SIZE = 1402;
 
+char local_display_name[DISPLAY_NAME_MAX_LEN];
+
 int main(int argc, char *argv[]) {
 
     if (argc == 2 && strcmp(argv[1], "-h") == 0) {
@@ -69,15 +71,6 @@ int main(int argc, char *argv[]) {
                             arguments->server_port);
     if (ret_value == 1) return 1; //TODO
 
-    
-    //TODO: strncpy jenom strlen(username) napr
-
-    //TODO: po kazde zprave se musi zvysit asi rucne message_id
-
-    //printf("%d\n", sizeof(auth_message));
-
-    char val[10];
-
     while (true) {
         int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
         if (event_count == -1) exit(99); //TODO
@@ -91,18 +84,23 @@ int main(int argc, char *argv[]) {
                 continue;
 
             CommandType cmd_type = get_command_type(line);
+            
+            if (cmd_type == CMD_HELP) {
+                print_command_help();
+                continue;
+            } else if (cmd_type == CMD_RENAME) {
+                //Locally changes the display name of the user to be sent with new messages/selected commands
+                char new_name[DISPLAY_NAME_MAX_LEN];
+                if (sscanf(line, "/rename %20s", new_name) != 1) {
+                    continue;
+                }
+                strcpy(local_display_name, new_name);
+                continue;
+            }
 
             Command command;
             if (parse_command(line, cmd_type, &command) == 1) // spatny command, cekej dal
                 continue;
-
-            if (command.command_type == CMD_HELP) {
-                print_command_help();
-                continue;
-            } else if (command.command_type == CMD_RENAME) {
-                //TODO: Locally changes the display name of the user to be sent with new messages/selected commands
-                continue;
-            }
 
             if (send_message_from_command(&command, socket_fd) == 1) {
                 return 1;//TODO
