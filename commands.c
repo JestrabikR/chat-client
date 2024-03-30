@@ -221,6 +221,42 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
 
             *msg_size = message_size;
 
+            break;
+        }
+
+        case CMD_MESSAGE: {
+            Message msg = command->message;
+            message_size = sizeof(msg.message_id) +
+                sizeof(msg.msg_type) +
+                strlen(msg.display_name) + 1 +
+                strlen(msg.message_content) + 1;
+
+            *message_string = (char *)malloc(message_size);         
+            if (*message_string == NULL)
+                return 1; //TODO: asi jinak ukoncit at poznam ze je to malloc fail
+
+            // Kopírování hodnot z AuthMessage do pole bytů
+            char *ptr = *message_string;
+
+            // Kopírování msg_type (1B)
+            memcpy(ptr, &(msg.msg_type), sizeof(msg.msg_type));
+            ptr += sizeof(msg.msg_type);
+
+            // Kopírování message_id (2B)
+            uint16_t message_id_reversed = htons(msg.message_id);
+            memcpy(ptr, &message_id_reversed, sizeof(message_id_reversed));
+            ptr += sizeof(message_id_reversed);
+
+            // Kopírování display_name (nB)
+            strcpy(ptr, msg.display_name);
+            ptr += strlen(msg.display_name) + 1;
+
+            // Kopírování channel_id (nB)
+            strcpy(ptr, msg.message_content);
+            ptr += strlen(msg.message_content) + 1;
+
+            *msg_size = message_size;
+
             printf("MS: %d\n", *msg_size);
             for (int i = 0; i < message_size; i++) {
                 printf("%02X ", (*message_string)[i]); // Vypíše každý byte pole jako hexadecimální číslo
@@ -228,9 +264,6 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
 
             break;
         }
-
-        case CMD_MESSAGE:
-            break;
 
         default:
             return 1;
