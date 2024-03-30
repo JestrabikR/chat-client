@@ -12,15 +12,26 @@ typedef enum {
     CMD_UNKNOWN
 } CommandType;
 
+typedef struct {
+    CommandType command_type;
+    union {
+        JoinMessage join_message;
+        AuthMessage auth_message;
+        Message message;
+    };
+} Command;
+
 /**
- * @brief returns type of
+ * @brief returns type of command
 */
 CommandType get_command_type(char *command_str);
 
 /**
- * @brief parses auth command string and sets auth_message
- * @returns 0 if successful, 1 in case of error
+ * @brief returns correct command in parameter
+ * @returns 0 on success, 1 on error
 */
-int parse_auth_command(char *command_str, AuthMessage *auth_msg);
+int parse_command(char *line, CommandType cmd_type, Command *command);
+
+int send_message_from_command(Command *command, int socket_fd);
 
 #endif

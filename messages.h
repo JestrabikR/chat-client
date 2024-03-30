@@ -18,12 +18,12 @@ typedef enum {
     MT_MSG = 0x04,
     MT_ERR	= 0xFE,
     MT_BYE	= 0xFF
-} MessageType;
+}__attribute__((packed)) MessageType;
 
 typedef struct {
     MessageType msg_type;
     uint16_t ref_message_id;
-} ConfirmMessage;
+}__attribute__((packed)) ConfirmMessage;
 
 typedef struct {
     MessageType msg_type;
@@ -31,40 +31,40 @@ typedef struct {
     bool result;
     uint16_t ref_message_id;
     char message_content[MESSAGE_CONTENT_MAX_LEN];
-} ReplyMessage;
+}__attribute__((packed)) ReplyMessage;
 
 typedef struct{
     MessageType msg_type;
     uint16_t message_id;
-    char *username; //TODO: predelat na dynamicky alokovane char[] VSECHNO
+    char *username;
     char *display_name;
     char *secret;
-} AuthMessage;
+}__attribute__((packed)) AuthMessage;
 
 typedef struct {
     MessageType msg_type;
     uint16_t message_id;
     char channel_id[CHANNEL_ID_MAX_LEN];
     char display_name[DISPLAY_NAME_MAX_LEN];
-} JoinMessage;
+}__attribute__((packed)) JoinMessage;
 
 typedef struct {
     MessageType msg_type;
     uint16_t message_id;
     char display_name[DISPLAY_NAME_MAX_LEN];
     char message_content[MESSAGE_CONTENT_MAX_LEN];
-} Message;
+}__attribute__((packed)) Message;
 
 typedef struct {
     MessageType msg_type;
     uint16_t message_id;
     char display_name[DISPLAY_NAME_MAX_LEN];
     char message_content[MESSAGE_CONTENT_MAX_LEN];
-} ErrMessage;
+}__attribute__((packed)) ErrMessage;
 
 typedef struct {
     MessageType msg_type;
     uint16_t message_id;
-} ByeMessage;
+}__attribute__((packed)) ByeMessage;
 
 #endif

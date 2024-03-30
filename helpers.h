@@ -26,6 +26,8 @@ int get_ip_address(char *hostname, struct in_addr **ip_address);
 
 void print_help();
 
+void print_command_help();
+
 /**
  * @brief validates and parses arguments
  * @param arguments fills this structure with data if ended successfully

@@ -23,6 +23,15 @@ void print_help() {
     printf(help_string);
 }
 
+void print_command_help() {
+    const char *help_string = "/auth	{Username} {Secret} {DisplayName}	Sends AUTH message with the data provided from the command to the server (and correctly handles the Reply message), locally sets the DisplayName value (same as the /rename command)"
+        "/join	{ChannelID}	Sends JOIN message with channel name from the command to the server (and correctly handles the Reply message)"
+        "/rename	{DisplayName}	Locally changes the display name of the user to be sent with new messages/selected commands"
+        "/help		Prints out supported local commands with their parameters and a description";
+    
+    printf(help_string);
+}
+
 int parse_arguments(int argc, char *argv[], CmdArguments *arguments) {
     if (argc < 5) { //program_name -t value -s value
         fprintf(stderr, "ERR: Wrong number of arguments, run with -h to display help\n");

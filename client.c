@@ -21,8 +21,6 @@ const unsigned int MAX_EVENTS = 3;
 const unsigned int RES_BUFF_SIZE = 128;
 const unsigned int STDIN_BUFF_SIZE = 1402;
 
-uint16_t message_id = 0;
-
 int main(int argc, char *argv[]) {
 
     if (argc == 2 && strcmp(argv[1], "-h") == 0) {
@@ -92,35 +90,22 @@ int main(int argc, char *argv[]) {
             if (is_empty(line) == true)
                 continue;
 
-            //TODO: mohlo by jit predelat do struktury s unii a typem, ktera se vrati z funkce at to neni tady
             CommandType cmd_type = get_command_type(line);
-            printf("%d\n", cmd_type);
 
-            switch (cmd_type) {
-                case CMD_AUTH:
-                    AuthMessage auth_message;
-                    //TODO: pozor tady se alokuji stringy ve strukture je potreba free
-                    if (parse_auth_command(line, &auth_message) == 1) {
-                        fprintf(stderr, "ERR: Wrong command format\n");
-                        continue;
-                    }
-                    printf("OK");
-                    auth_message.msg_type = MT_AUTH;
-                    auth_message.message_id = message_id++;
-                    ssize_t result = send(socket_fd, &auth_message, sizeof(auth_message), 0);
-                    if (result == -1) return 1; //TODO
-                    break;
-                case CMD_JOIN:
-                    break;
-                case CMD_RENAME:
-                    break;
-                case CMD_MESSAGE:
-                    break;
-                case CMD_HELP:
-                    break;
-                default:
-                    fprintf(stderr, "ERR: Unknown command\n");
-                    continue;
+            Command command;
+            if (parse_command(line, cmd_type, &command) == 1) // spatny command, cekej dal
+                continue;
+
+            if (command.command_type == CMD_HELP) {
+                print_command_help();
+                continue;
+            } else if (command.command_type == CMD_RENAME) {
+                //TODO: Locally changes the display name of the user to be sent with new messages/selected commands
+                continue;
+            }
+
+            if (send_message_from_command(&command, socket_fd) == 1) {
+                return 1;//TODO
             }
 
             printf("stdin event happened first: '%s'\n", line);
