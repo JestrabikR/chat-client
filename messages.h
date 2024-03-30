@@ -44,15 +44,15 @@ typedef struct{
 typedef struct {
     MessageType msg_type;
     uint16_t message_id;
-    char channel_id[CHANNEL_ID_MAX_LEN];
-    char display_name[DISPLAY_NAME_MAX_LEN];
+    char *channel_id;
+    char *display_name;
 }__attribute__((packed)) JoinMessage;
 
 typedef struct {
     MessageType msg_type;
     uint16_t message_id;
-    char display_name[DISPLAY_NAME_MAX_LEN];
-    char message_content[MESSAGE_CONTENT_MAX_LEN];
+    char *display_name;
+    char *message_content;
 }__attribute__((packed)) Message;
 
 typedef struct {

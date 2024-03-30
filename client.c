@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
                 continue;
 
             CommandType cmd_type = get_command_type(line);
-            
+
             if (cmd_type == CMD_HELP) {
                 print_command_help();
                 continue;
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
             }
 
             Command command;
-            if (parse_command(line, cmd_type, &command) == 1) // spatny command, cekej dal
+            if (parse_command(line, cmd_type, &command, local_display_name) == 1) // spatny command, cekej dal
                 continue;
 
             if (send_message_from_command(&command, socket_fd) == 1) {

@@ -5,7 +5,7 @@
 #include "helpers.h"
 #include <sys/types.h>
 
-//TODO: pred zavolanim se musi zkontrolovat jestli to neni prazdny a radek a kdyztak ho asi ignorovat
+// pred zavolanim se musi zkontrolovat jestli to neni prazdny a radek a kdyztak ho asi ignorovat
 CommandType get_command_type(char *command_str) {
     command_str = trim(command_str); // updates pointer to first non-whitespace char
 
@@ -51,7 +51,7 @@ int parse_auth_command(char *command_str, AuthMessage *auth_msg) {
         free(auth_msg->username);
         free(auth_msg->display_name);
         free(auth_msg->secret);
-        return 1;
+        return 1; //TODO: asi jinak ukoncit
     }
 
     // Kopírování řetězců do alokované paměti
@@ -62,7 +62,48 @@ int parse_auth_command(char *command_str, AuthMessage *auth_msg) {
     return 0;
 }
 
-int parse_command(char *line, CommandType cmd_type, Command *command) {
+int parse_join_command(char *command_str, JoinMessage *join_msg, char *display_name) {
+    char channel_id[CHANNEL_ID_MAX_LEN + 1];
+
+    //TODO: sscanf nepozna /join server a /join server server2 (oboje projde ale to druhe by nemelo)
+    if (sscanf(command_str, "/join %20s", channel_id) != 1) {
+        return 1;
+    }
+
+    join_msg->display_name = malloc(strlen(display_name) + 1);
+    join_msg->channel_id = malloc(strlen(channel_id) + 1);
+
+    if (join_msg->display_name == NULL || join_msg->channel_id == NULL) {
+        free(join_msg->display_name);
+        free(join_msg->channel_id);
+        return 1; //TODO: asi jinak ukoncit
+    }
+
+    strncpy(join_msg->channel_id, channel_id, strlen(channel_id) + 1);
+    strncpy(join_msg->display_name, display_name, strlen(display_name) + 1);
+
+    return 0;
+}
+
+int parse_message_command(char *command_str, Message *msg, char *display_name) {
+    msg->message_content = malloc(strlen(command_str) + 1);
+    msg->display_name = malloc(strlen(display_name) + 1);
+    
+    if (msg->message_content == NULL || msg->display_name == NULL) {
+        free(msg->message_content);
+        free(msg->display_name);
+        return 1; //TODO: asi jinak ukoncit
+    }
+
+    strncpy(msg->message_content, command_str, strlen(command_str) + 1);
+    strncpy(msg->display_name, display_name, strlen(display_name) + 1);
+    return 0;
+}
+
+
+int parse_command(char *line, CommandType cmd_type, Command *command, char *display_name) {
+    command->command_type = cmd_type;
+    
     switch (cmd_type) {
         case CMD_AUTH:
             //TODO: pozor tady se alokuje username, secret a display name - free po odeslani
@@ -71,14 +112,27 @@ int parse_command(char *line, CommandType cmd_type, Command *command) {
                 return 1;
             }
             command->auth_message.msg_type = MT_AUTH;
-            printf("PARSED AUTH");
+            printf("PARSED AUTH\n");
             break;
+
         case CMD_JOIN:
-            printf("PARSING JOIN");
+            if (parse_join_command(line, &command->join_message, display_name) == 1) {
+                fprintf(stderr, "ERR: Wrong command format\n");
+                return 1;
+            }
+            command->join_message.msg_type = MT_JOIN;
+            printf("PARSED JOIN\n");
             break;
+
         case CMD_MESSAGE:
-            printf("PARSING MESSAGE");
+            printf("PARSING MESSAGE\n");
+            if (parse_message_command(line, &command->message, display_name) == 1) {
+                fprintf(stderr, "ERR: Wrong message\n");
+                return 1;
+            }
+            command->message.msg_type = MT_MSG;
             break;
+
         default:
             fprintf(stderr, "ERR: Unknown command\n");
             return 1;
@@ -90,6 +144,7 @@ int parse_command(char *line, CommandType cmd_type, Command *command) {
 uint16_t message_id = 0;
 
 int send_message_from_command(Command *command, int socket_fd) {
+    printf("t: %d\n", command->command_type);
     ssize_t result;
     switch (command->command_type) {
         case CMD_AUTH:
@@ -99,12 +154,14 @@ int send_message_from_command(Command *command, int socket_fd) {
             printf("SENT AUTH\n");
             break;
         case CMD_JOIN:
+            printf("STARTED SENDING JOIN\n");
             command->join_message.message_id = message_id++;
             result = send(socket_fd, &command->join_message, sizeof(command->join_message), 0);
             if (result == -1) return 1;
             printf("SENT JOIN\n");
             break;
         case CMD_MESSAGE:
+            printf("SENDING MESSAGE\n");
             command->message.message_id = message_id++;
             result = send(socket_fd, &command->message, sizeof(command->message), 0);
             if (result == -1) return 1;
