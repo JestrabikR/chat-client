@@ -10,6 +10,7 @@ typedef struct {
         ErrMessage err_message;
         ReplyMessage reply_message;
         ConfirmMessage confirm_message;
+        Message message;
     };
 } Response;
 

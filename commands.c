@@ -116,7 +116,6 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
                 return 1;
             }
             command->auth_message.msg_type = MT_AUTH;
-            printf("PARSED AUTH\n");
             break;
 
         case CMD_JOIN:
@@ -125,11 +124,9 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
                 return 1;
             }
             command->join_message.msg_type = MT_JOIN;
-            printf("PARSED JOIN\n");
             break;
 
         case CMD_MESSAGE:
-            printf("PARSING MESSAGE\n");
             if (parse_message_command(line, &command->message, disp_name) == 1) {
                 fprintf(stderr, "ERR: Wrong message\n");
                 return 1;
@@ -327,20 +324,16 @@ int send_message_from_command(Command *command, int socket_fd, struct sockaddr_i
     ssize_t result;
     switch (command->command_type) {
         case CMD_AUTH:
-            printf("SENDING AUTH\n");
             command->auth_message.message_id = message_id++;
             break;
         case CMD_JOIN:
-            printf("SENDING JOIN\n");
             command->join_message.message_id = message_id++;
 
             break;
         case CMD_MESSAGE:
-            printf("SENDING MESSAGE\n");
             command->message.message_id = message_id++;
             break;
         case CMD_EXIT:
-            printf("SENDING EXIT\n");
             command->bye_message.msg_type = MT_BYE;
             command->bye_message.message_id = message_id++;
             break;
@@ -361,7 +354,7 @@ int send_message_from_command(Command *command, int socket_fd, struct sockaddr_i
         free(message_string);
         return 1;
     }
-    printf("%p\n", message_string);
+
     free(message_string);
 
     return 0;

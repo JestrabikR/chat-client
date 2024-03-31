@@ -98,8 +98,7 @@ void sigint_handler(int sig_no)
         }
     }
     else {
-        //TODO: send bye 
-        printf("using tcp\n");
+        //TODO: send bye using TCP
     }
 
     exit(EXIT_SUCCESS);
@@ -166,6 +165,10 @@ int main(int argc, char *argv[]) {
     unsigned int addr_len;
 
     while (true) {
+        if (current_state == S_ERROR) {
+            //TODO: send Bye
+        }
+
         int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
         if (event_count == -1) exit(99); //TODO
 
@@ -210,7 +213,7 @@ int main(int argc, char *argv[]) {
             
             free_command(&command);
 
-            printf("stdin event happened first: '%s'\n", line); //TODO REMOVE
+            //printf("stdin event happened first: '%s'\n", line);
         } else {
             char response_msg[RES_BUFF_SIZE];
 
@@ -222,7 +225,7 @@ int main(int argc, char *argv[]) {
 
             if (ret_value == -1) exit(99); //TODO
             if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
-            printf("socket event happened first: '%s'\n", response_msg); //TODO REMOVE
+            // printf("socket event happened first: '%s'\n", response_msg);
 
             MessageType response_type;
             if (get_response_type(response_msg, &response_type) == 1)
@@ -233,18 +236,22 @@ int main(int argc, char *argv[]) {
                 exit(99); //TODO
             }
 
-            if (response_type == MT_CONFIRM && auth_sent) {
-                printf("switched to open\n");
+            if (response_type == MT_REPLY && response.reply_message.result && auth_sent) {
                 current_state = S_OPEN;
             } 
 
             if (response_type == MT_REPLY) {
-                //TODO: The contents of an incomming REPLY message are required to be printed to standard error stream (stderr) and formatted as follows (there are two variants of the reply message):
-                // Success: {MessageContent}\n
-                // Failure: {ReaMessageContenton}\n
-
+                if (response.reply_message.result) {
+                    fprintf(stderr, "Success: %s\n", response.reply_message.message_content);
+                } else {
+                    fprintf(stderr, "Failure: %s\n", response.reply_message.message_content);
+                }
+            } else if (response_type == MT_MSG) {
+                printf("%s: %s\n", response.message.display_name, response.message.message_content);
+            } else if (response_type == MT_ERR) {
+                fprintf(stderr, "ERR FROM %s: %s\n", response.err_message.display_name, response.err_message.message_content);
+                current_state = S_ERROR;
             }
-
         }
     }
 

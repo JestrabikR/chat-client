@@ -79,7 +79,7 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
 
             pos += sizeof(response->reply_message.ref_message_id);
 
-            // char message_content[MESSAGE_CONTENT_MAX_LEN];
+            // char *message_content;
             response->reply_message.message_content = malloc(strlen(pos) + 1);
             if (response->reply_message.message_content == NULL) {
                 exit(99); //TODO: cleanup() / err / bye ??
@@ -89,9 +89,70 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             break;
         }
 
-        case MT_ERR: {
+        case MT_MSG: {
+            // MessageType msg_type;
+            char *pos = response_msg;
+
+            response->message.msg_type = MT_MSG;
+
+            pos += sizeof(response->message.msg_type);
+            
+            // uint16_t message_id;
+            memcpy(&response->message.message_id,
+                    pos,
+                    sizeof(response->message.message_id));
+            // prevod little na big endian
+            response->message.message_id = ntohs(response->message.message_id);
+            
+            pos += sizeof(response->message.message_id);
+            
+            // char *display_name;
+            response->message.display_name = malloc(strlen(pos) + 1);
+            if (response->message.display_name == NULL) {
+                exit(99); //TODO: cleanup() / err / bye ??
+            }
+            strcpy(response->message.display_name, pos);
+            
+            // char *message_content;
+            response->message.message_content = malloc(strlen(pos) + 1);
+            if (response->message.message_content == NULL) {
+                exit(99); //TODO: cleanup() / err / bye ??
+            }
+            strcpy(response->message.message_content, pos);
 
             break;
+        }
+
+        case MT_ERR: {
+            // MessageType msg_type;
+            char *pos = response_msg;
+
+            response->err_message.msg_type = MT_ERR;
+
+            pos += sizeof(response->err_message.msg_type);
+            
+            // uint16_t message_id;
+            memcpy(&response->err_message.message_id,
+                    pos,
+                    sizeof(response->err_message.message_id));
+            // prevod little na big endian
+            response->err_message.message_id = ntohs(response->err_message.message_id);
+            
+            pos += sizeof(response->err_message.message_id);
+            
+            // char *display_name;
+            response->err_message.display_name = malloc(strlen(pos) + 1);
+            if (response->err_message.display_name == NULL) {
+                exit(99); //TODO: cleanup() / err / bye ??
+            }
+            strcpy(response->err_message.display_name, pos);
+            
+            // char *message_content;
+            response->err_message.message_content = malloc(strlen(pos) + 1);
+            if (response->err_message.message_content == NULL) {
+                exit(99); //TODO: cleanup() / err / bye ??
+            }
+            strcpy(response->err_message.message_content, pos);
         }
 
         default:
