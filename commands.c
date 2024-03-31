@@ -103,7 +103,6 @@ int parse_message_command(char *command_str, Message *msg, char *display_name) {
     return 0;
 }
 
-
 int parse_command(char *line, CommandType cmd_type, Command *command, char *disp_name) {
     command->command_type = cmd_type;
 
@@ -135,7 +134,8 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
             }
             command->message.msg_type = MT_MSG;
             break;
-
+        case CMD_EXIT:
+            break;
         default:
             fprintf(stderr, "ERR: Unknown command\n");
             return 1;
@@ -159,7 +159,7 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
             if (*message_string == NULL)
                 return 1; //TODO: asi jinak ukoncit at poznam ze je to malloc fail
 
-            // Kopírování hodnot z AuthMessage do pole bytů
+            // Kopírování hodnot z msg do pole bytů
             char *ptr = *message_string;
 
             // Kopírování msg_type (1B)
@@ -199,7 +199,7 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
             if (*message_string == NULL)
                 return 1; //TODO: asi jinak ukoncit at poznam ze je to malloc fail
 
-            // Kopírování hodnot z AuthMessage do pole bytů
+            // Kopírování hodnot z msg do pole bytů
             char *ptr = *message_string;
 
             // Kopírování msg_type (1B)
@@ -235,7 +235,7 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
             if (*message_string == NULL)
                 return 1; //TODO: asi jinak ukoncit at poznam ze je to malloc fail
 
-            // Kopírování hodnot z AuthMessage do pole bytů
+            // Kopírování hodnot z msg do pole bytů
             char *ptr = *message_string;
 
             // Kopírování msg_type (1B)
@@ -259,6 +259,31 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
 
             break;
         }
+        case CMD_EXIT: {
+            ByeMessage msg = command->bye_message;
+            message_size = sizeof(msg.message_id) +
+                sizeof(msg.msg_type);
+
+            *message_string = (char *)malloc(message_size);         
+            if (*message_string == NULL)
+                return 1; //TODO: asi jinak ukoncit at poznam ze je to malloc fail
+
+            // Kopírování hodnot z msg do pole bytů
+            char *ptr = *message_string;
+
+            // Kopírování msg_type (1B)
+            memcpy(ptr, &(msg.msg_type), sizeof(msg.msg_type));
+            ptr += sizeof(msg.msg_type);
+
+            // Kopírování message_id (2B)
+            uint16_t message_id_reversed = htons(msg.message_id);
+            memcpy(ptr, &message_id_reversed, sizeof(message_id_reversed));
+            ptr += sizeof(message_id_reversed);
+
+            *msg_size = message_size;
+
+            break;
+        }
 
         default:
             return 1;
@@ -267,7 +292,7 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
     return 0;
 }
 
-int free_command(Command *command) {
+void free_command(Command *command) {
     switch (command->command_type) {
         case CMD_AUTH:
             free(command->auth_message.username);
@@ -284,13 +309,11 @@ int free_command(Command *command) {
             free(command->message.message_content);
             free(command->message.display_name);  
             break;
-
+        case CMD_EXIT:
+            break;
         default:
-            fprintf(stderr, "ERR: Unknown command\n");
-            return 1;
+            break;
     }
-
-    return 0;
 }
 
 uint16_t message_id = 0;
@@ -310,6 +333,11 @@ int send_message_from_command(Command *command, int socket_fd, struct sockaddr_i
         case CMD_MESSAGE:
             printf("SENDING MESSAGE\n");
             command->message.message_id = message_id++;
+            break;
+        case CMD_EXIT:
+            printf("SENDING EXIT\n");
+            command->bye_message.msg_type = MT_BYE;
+            command->bye_message.message_id = message_id++;
             break;
         default:
             break;

@@ -9,6 +9,7 @@ typedef enum {
     CMD_RENAME,
     CMD_HELP,
     CMD_MESSAGE,
+    CMD_EXIT,
     CMD_UNKNOWN
 } CommandType;
 
@@ -17,6 +18,7 @@ typedef struct {
     union {
         JoinMessage join_message;
         AuthMessage auth_message;
+        ByeMessage bye_message;
         Message message;
     };
 } Command;
@@ -39,7 +41,7 @@ int send_message_from_command(Command *command, int socket_fd, sockaddr_in_ptr s
 /**
  * @return 0 on success, 1 if wrong command is passed
 */
-int free_command(Command *command);
+void free_command(Command *command);
 
 /**
  * @brief allocates and arranges message_string to send

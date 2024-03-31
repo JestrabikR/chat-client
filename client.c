@@ -5,15 +5,19 @@
 #include <sys/epoll.h>
 #include <unistd.h> //close
 #include <stdbool.h>
+#include <signal.h>
 
 #include "client.h"
 #include "messages.h"
 #include "communication.h"
-#include "udp/udp.h"
 #include "helpers.h"
 #include "commands.h"
 
 #define PRINT_LINE() printf("%d\n", __LINE__) //REMOVE for testing only
+
+int inet_pton(int af, const char *restrict src, void *restrict dst);
+
+int kill(pid_t pid, int sig);
 
 const int stdin_fd = 0;
 
@@ -25,6 +29,39 @@ char local_display_name[DISPLAY_NAME_MAX_LEN];
 
 CommunicationState current_state = S_START;
 
+int socket_fd;
+struct sockaddr_in address;
+
+CmdArguments *arguments;
+    
+void sigint_handler(int sig_no)
+{
+    (void)sig_no; // odchytava se pouze SIGINT, tak aby se odstranilo varovani pri prekladu
+    if (arguments->is_udp) {
+        Command bye_command = {
+            .command_type = CMD_EXIT
+        };
+
+
+        char *message_string;
+        int msg_size;
+        create_msg_string_from_command(&bye_command, &message_string, &msg_size);
+
+        if (send_message_from_command(&bye_command, socket_fd, &address) == 1) {
+            free_command(&bye_command);
+            exit(99); //TODO
+        }
+
+        // while (true) posilat bye dokud nedojde recvfrom confirm
+    }
+    else {
+        //TODO: send bye 
+        printf("using tcp\n");
+    }
+
+    exit(EXIT_SUCCESS);
+}
+
 int main(int argc, char *argv[]) {
 
     if (argc == 2 && strcmp(argv[1], "-h") == 0) {
@@ -32,7 +69,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    CmdArguments *arguments = (CmdArguments *)malloc(sizeof(CmdArguments));
+    arguments = (CmdArguments *)malloc(sizeof(CmdArguments));
     if (arguments == NULL)
         fprintf(stderr, "ERR: Internal error\n");
 
@@ -44,8 +81,10 @@ int main(int argc, char *argv[]) {
     if (ret_value == 1) exit(99); //TODO
 
     if (get_ip_address(arguments->server_ip_or_hostname, &ip_address) == 1) exit(99); //TODO: handle correctly
+    
+    signal(SIGINT, sigint_handler);
 
-    int socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if (socket_fd == -1) exit(99); //TODO: handle
 
     int epoll_fd = epoll_create1(0);
@@ -67,7 +106,6 @@ int main(int argc, char *argv[]) {
 
     struct epoll_event events[MAX_EVENTS];
 
-    struct sockaddr_in address;
     address.sin_family = AF_INET;
     address.sin_port = htons(arguments->server_port);
     inet_pton(AF_INET, arguments->server_ip_or_hostname, &address.sin_addr.s_addr);
