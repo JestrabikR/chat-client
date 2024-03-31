@@ -15,6 +15,8 @@
 #include "response.h"
 #include "sent_messages_queue.h"
 
+#define MAX_EVENTS 3
+
 #define PRINT_LINE() printf("%d\n", __LINE__) //REMOVE for testing only
 
 int inet_pton(int af, const char *restrict src, void *restrict dst);
@@ -23,8 +25,7 @@ int kill(pid_t pid, int sig);
 
 const int stdin_fd = 0;
 
-const unsigned int MAX_EVENTS = 3;
-const unsigned int RES_BUFF_SIZE = 128;
+const unsigned int RES_BUFF_SIZE = 1500;
 const unsigned int STDIN_BUFF_SIZE = 1402;
 
 char local_display_name[DISPLAY_NAME_MAX_LEN];
@@ -33,6 +34,10 @@ CommunicationState current_state = S_START;
 
 int socket_fd;
 struct sockaddr_in address;
+int epoll_fd;
+struct epoll_event events[MAX_EVENTS];
+struct epoll_event socket_event;
+struct epoll_event stdin_event;
 
 CmdArguments *arguments;
 
@@ -58,7 +63,39 @@ void sigint_handler(int sig_no)
         sm_queue_free(&sm_queue);
         free_command(&bye_command);
 
-        // while (true) posilat bye dokud nedojde recvfrom confirm
+        while (true) {
+            int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+            if (event_count == -1) exit(99); //TODO
+
+            if (events[0].data.fd == stdin_fd) {
+                continue; //TODO: asi ignorovat?
+            } else {
+                char response_msg[RES_BUFF_SIZE];
+                unsigned int addr_len;
+
+                int ret_value = recvfrom(socket_fd,
+                                    response_msg,
+                                    RES_BUFF_SIZE, 0,
+                                    (struct sockaddr *)&address,
+                                    &addr_len);
+
+                if (ret_value == -1) exit(99); //TODO
+                if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
+
+                MessageType response_type;
+                if (get_response_type(response_msg, &response_type) == 1)
+                    exit(99); //TODO spatny typ => asi SEND ERR
+
+                Response response;
+                if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
+                    exit(99); //TODO
+                }
+                if (response_type == MT_CONFIRM) {
+                    break;
+                }
+            }
+
+        }
     }
     else {
         //TODO: send bye 
@@ -66,6 +103,35 @@ void sigint_handler(int sig_no)
     }
 
     exit(EXIT_SUCCESS);
+}
+
+int setup_udp() {
+    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (socket_fd == -1)
+        return 1;
+
+    epoll_fd = epoll_create1(0);
+    if (epoll_fd == -1)
+        return 1;
+
+    socket_event.events = EPOLLIN;
+    stdin_event.events = EPOLLIN;
+
+    socket_event.data.fd = socket_fd;
+    stdin_event.data.fd = stdin_fd;
+
+    int ret_value = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_fd, &socket_event);
+    if (ret_value == -1)
+        return 1;
+    ret_value = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stdin_fd, &stdin_event);
+    if (ret_value == -1)
+        return 1;
+
+    address.sin_family = AF_INET;
+    address.sin_port = htons(arguments->server_port);
+    inet_pton(AF_INET, arguments->server_ip_or_hostname, &address.sin_addr.s_addr);
+    
+    return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -88,35 +154,12 @@ int main(int argc, char *argv[]) {
 
     if (get_ip_address(arguments->server_ip_or_hostname, &ip_address) == 1) exit(99); //TODO: handle correctly
     
-    //TODO: sm_queue_init(&sm_queue);
+    if (arguments->is_udp)
+        sm_queue_init(&sm_queue);
 
     signal(SIGINT, sigint_handler);
 
-    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (socket_fd == -1) exit(99); //TODO: handle
-
-    int epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1) exit(99); //TODO: handle
-
-    struct epoll_event socket_event;
-    struct epoll_event stdin_event;
-
-    socket_event.events = EPOLLIN;
-    stdin_event.events = EPOLLIN;
-
-    socket_event.data.fd = socket_fd;
-    stdin_event.data.fd = stdin_fd;
-
-    ret_value = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_fd, &socket_event);
-    if (ret_value == -1) exit(99); //TODO
-    ret_value = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stdin_fd, &stdin_event);
-    if (ret_value == -1) exit(99); //TODO
-
-    struct epoll_event events[MAX_EVENTS];
-
-    address.sin_family = AF_INET;
-    address.sin_port = htons(arguments->server_port);
-    inet_pton(AF_INET, arguments->server_ip_or_hostname, &address.sin_addr.s_addr);
+    ret_value = setup_udp();
 
     unsigned int addr_len;
 
