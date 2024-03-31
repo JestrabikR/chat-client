@@ -12,6 +12,8 @@
 #include "communication.h"
 #include "helpers.h"
 #include "commands.h"
+#include "response.h"
+#include "sent_messages_queue.h"
 
 #define PRINT_LINE() printf("%d\n", __LINE__) //REMOVE for testing only
 
@@ -33,6 +35,8 @@ int socket_fd;
 struct sockaddr_in address;
 
 CmdArguments *arguments;
+
+SM_Queue sm_queue;
     
 void sigint_handler(int sig_no)
 {
@@ -42,15 +46,17 @@ void sigint_handler(int sig_no)
             .command_type = CMD_EXIT
         };
 
-
         char *message_string;
         int msg_size;
         create_msg_string_from_command(&bye_command, &message_string, &msg_size);
 
-        if (send_message_from_command(&bye_command, socket_fd, &address) == 1) {
+        if (send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
+            sm_queue_free(&sm_queue);
             free_command(&bye_command);
             exit(99); //TODO
         }
+        sm_queue_free(&sm_queue);
+        free_command(&bye_command);
 
         // while (true) posilat bye dokud nedojde recvfrom confirm
     }
@@ -74,7 +80,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "ERR: Internal error\n");
 
     struct in_addr *ip_address;
-
+    
     int ret_value;
     
     ret_value = parse_arguments(argc, argv, arguments);
@@ -82,6 +88,8 @@ int main(int argc, char *argv[]) {
 
     if (get_ip_address(arguments->server_ip_or_hostname, &ip_address) == 1) exit(99); //TODO: handle correctly
     
+    //TODO: sm_queue_init(&sm_queue);
+
     signal(SIGINT, sigint_handler);
 
     socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -143,7 +151,7 @@ int main(int argc, char *argv[]) {
             if (parse_command(line, cmd_type, &command, local_display_name) == 1) // spatny command, cekej dal
                 continue;
 
-            if (send_message_from_command(&command, socket_fd, &address) == 1) {
+            if (send_message_from_command(&command, socket_fd, &address, &sm_queue) == 1) {
                 free_command(&command);
                 return 1;//TODO
             }
@@ -153,18 +161,31 @@ int main(int argc, char *argv[]) {
             printf("stdin event happened first: '%s'\n", line);
         } else {
             char response[RES_BUFF_SIZE];
-            //predat parametr strukturu s sockaddr
-            ret_value = recvfrom(socket_fd, response, RES_BUFF_SIZE, 0, (struct sockaddr *)&address, &addr_len);
-            //TODO: na konci response jsou spatne znaky 
+
+            ret_value = recvfrom(socket_fd,
+                                response,
+                                RES_BUFF_SIZE, 0,
+                                (struct sockaddr *)&address,
+                                &addr_len);
+
             if (ret_value == -1) exit(99); //TODO
             if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
             printf("socket event happened first: '%s'\n", response);
 
-            
+            MessageType response_type;
+            if (get_response_type(response, &response_type) == 1)
+                exit(99); //TODO asi SEND ERR
+
+            if (response_type == MT_CONFIRM) {
+                
+            }
+
         }
     }
 
+    //TODO: vytvorit nejakou clean_up() funkci
     free(arguments);
+    sm_queue_free(&sm_queue);
     int epoll_closed = close(epoll_fd);
     int socket_closed = close(epoll_fd);
     if (epoll_closed != 0 || socket_closed != 0) exit(99); //TODO

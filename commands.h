@@ -2,6 +2,7 @@
 #define COMMANDS_H
 
 #include "messages.h"
+#include "sent_messages_queue.h"
 
 typedef enum {
     CMD_AUTH,
@@ -36,7 +37,7 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
 
 typedef struct sockaddr_in* sockaddr_in_ptr;
 
-int send_message_from_command(Command *command, int socket_fd, sockaddr_in_ptr socket_address);
+int send_message_from_command(Command *command, int socket_fd, sockaddr_in_ptr socket_address, SM_Queue *sm_queue);
 
 /**
  * @return 0 on success, 1 if wrong command is passed

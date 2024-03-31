@@ -3,6 +3,8 @@
 #include "commands.h"
 #include "string.h"
 #include "helpers.h"
+#include "sent_messages_queue.h"
+
 #include <sys/types.h>
 
 // pred zavolanim se musi zkontrolovat jestli to neni prazdny a radek a kdyztak ho asi ignorovat
@@ -318,7 +320,10 @@ void free_command(Command *command) {
 
 uint16_t message_id = 0;
 
-int send_message_from_command(Command *command, int socket_fd, struct sockaddr_in *socket_address) {
+int send_message_from_command(Command *command, int socket_fd, struct sockaddr_in *socket_address, SM_Queue *sm_queue) {
+    
+    sm_queue_enqueue(sm_queue, message_id);
+    
     ssize_t result;
     switch (command->command_type) {
         case CMD_AUTH:

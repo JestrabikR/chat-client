@@ -1,14 +1,20 @@
 #include <string.h>
+#include <stdio.h>
+
 #include "response.h"
 #include "messages.h"
 
-int parse_response(char *response, int response_size) {
+int get_response_type(char *response, MessageType *response_type) {
 
-// zkontrolovat jestli je to confirm
-    MessageType msg_type;
-    memcpy(msg_type, response, sizeof(MessageType));
+    memcpy(response_type, response, sizeof(MessageType));
 
-    printf("RES TYPE: %d\n", msg_type);
-// zkontrolovat podle prvniho bytu jaky je to typ zpravy
+    //pokud bude prvni byte bude jiny nez typy z enumu
+    if (*response_type != MT_AUTH && *response_type != MT_BYE &&
+        *response_type != MT_CONFIRM && *response_type != MT_ERR &&
+        *response_type != MT_JOIN && *response_type != MT_MSG &&
+        *response_type != MT_REPLY) {
+            return 1;
+        }
 
+    return 0;
 }
