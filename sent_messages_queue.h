@@ -24,4 +24,5 @@ void sm_queue_enqueue(SM_Queue *sm_queue, uint16_t message_id);
 
 bool sm_queue_dequeue(SM_Queue *sm_queue, uint16_t *message_id);
 
+bool sm_queue_peek(SM_Queue *sm_queue, uint16_t *message_id);
 #endif

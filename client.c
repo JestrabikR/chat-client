@@ -160,24 +160,29 @@ int main(int argc, char *argv[]) {
 
             printf("stdin event happened first: '%s'\n", line);
         } else {
-            char response[RES_BUFF_SIZE];
+            char response_msg[RES_BUFF_SIZE];
 
             ret_value = recvfrom(socket_fd,
-                                response,
+                                response_msg,
                                 RES_BUFF_SIZE, 0,
                                 (struct sockaddr *)&address,
                                 &addr_len);
 
             if (ret_value == -1) exit(99); //TODO
             if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
-            printf("socket event happened first: '%s'\n", response);
+            printf("socket event happened first: '%s'\n", response_msg);
 
             MessageType response_type;
-            if (get_response_type(response, &response_type) == 1)
-                exit(99); //TODO asi SEND ERR
+            if (get_response_type(response_msg, &response_type) == 1)
+                exit(99); //TODO spatny typ => asi SEND ERR
+
+            Response response;
+            if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
+                exit(99); //TODO
+            }
 
             if (response_type == MT_CONFIRM) {
-                
+
             }
 
         }
