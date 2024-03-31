@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "response.h"
 #include "messages.h"
@@ -42,8 +43,53 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
                 if (response->confirm_message.ref_message_id == msg_id) {
                     // odstraneni z queue
                     sm_queue_dequeue(sm_queue, &msg_id);
-                }
+                } //jinak se ceka na dalsi a tento se ignoruje
             } //TODO else
+
+            break;
+        }
+
+        case MT_REPLY: {
+            char *pos = response_msg;
+
+            response->reply_message.msg_type = MT_REPLY;
+
+            pos += sizeof(response->reply_message.msg_type);
+            
+            // uint16_t message_id;
+            memcpy(&response->reply_message.message_id,
+                    pos,
+                    sizeof(response->reply_message.message_id));
+            // prevod little na big endian
+            response->reply_message.message_id = ntohs(response->reply_message.message_id);
+            
+            pos += sizeof(response->reply_message.message_id);
+
+            // bool result;
+            memcpy(&response->reply_message.result,
+                    pos,
+                    sizeof(response->reply_message.result));
+
+            pos += sizeof(response->reply_message.result);
+
+            // uint16_t ref_message_id;
+            memcpy(&response->reply_message.ref_message_id,
+                    pos,
+                    sizeof(response->reply_message.ref_message_id));
+
+            pos += sizeof(response->reply_message.ref_message_id);
+
+            // char message_content[MESSAGE_CONTENT_MAX_LEN];
+            response->reply_message.message_content = malloc(strlen(pos) + 1);
+            if (response->reply_message.message_content == NULL) {
+                exit(99); //TODO: cleanup() / err / bye ??
+            }
+            strcpy(response->reply_message.message_content, pos);
+
+            break;
+        }
+
+        case MT_ERR: {
 
             break;
         }

@@ -148,6 +148,8 @@ int main(int argc, char *argv[]) {
     struct in_addr *ip_address;
     
     int ret_value;
+
+    bool auth_sent = false;
     
     ret_value = parse_arguments(argc, argv, arguments);
     if (ret_value == 1) exit(99); //TODO
@@ -188,6 +190,12 @@ int main(int argc, char *argv[]) {
                 }
                 strcpy(local_display_name, new_name);
                 continue;
+            } else if (cmd_type == CMD_MESSAGE && current_state != S_OPEN) {
+                fprintf(stderr, "ERR: Cannot send message right now (you have to be authenticated)\n");
+                continue;
+            } else if (cmd_type == CMD_JOIN && current_state != S_OPEN) {
+                fprintf(stderr, "ERR: Cannot join channel right now (you have to be authenticated)\n");
+                continue;
             }
 
             Command command;
@@ -198,10 +206,11 @@ int main(int argc, char *argv[]) {
                 free_command(&command);
                 return 1;//TODO
             }
+            if (cmd_type == CMD_AUTH) auth_sent = true;
             
             free_command(&command);
 
-            printf("stdin event happened first: '%s'\n", line);
+            printf("stdin event happened first: '%s'\n", line); //TODO REMOVE
         } else {
             char response_msg[RES_BUFF_SIZE];
 
@@ -213,7 +222,7 @@ int main(int argc, char *argv[]) {
 
             if (ret_value == -1) exit(99); //TODO
             if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
-            printf("socket event happened first: '%s'\n", response_msg);
+            printf("socket event happened first: '%s'\n", response_msg); //TODO REMOVE
 
             MessageType response_type;
             if (get_response_type(response_msg, &response_type) == 1)
@@ -224,7 +233,15 @@ int main(int argc, char *argv[]) {
                 exit(99); //TODO
             }
 
-            if (response_type == MT_CONFIRM) {
+            if (response_type == MT_CONFIRM && auth_sent) {
+                printf("switched to open\n");
+                current_state = S_OPEN;
+            } 
+
+            if (response_type == MT_REPLY) {
+                //TODO: The contents of an incomming REPLY message are required to be printed to standard error stream (stderr) and formatted as follows (there are two variants of the reply message):
+                // Success: {MessageContent}\n
+                // Failure: {ReaMessageContenton}\n
 
             }
 

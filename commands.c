@@ -361,6 +361,7 @@ int send_message_from_command(Command *command, int socket_fd, struct sockaddr_i
         free(message_string);
         return 1;
     }
+    printf("%p\n", message_string);
     free(message_string);
 
     return 0;

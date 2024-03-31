@@ -30,7 +30,7 @@ typedef struct {
     uint16_t message_id;
     bool result;
     uint16_t ref_message_id;
-    char message_content[MESSAGE_CONTENT_MAX_LEN];
+    char *message_content;
 }__attribute__((packed)) ReplyMessage;
 
 typedef struct{
