@@ -257,11 +257,6 @@ int create_msg_string_from_command(Command *command, char **message_string, int 
 
             *msg_size = message_size;
 
-            printf("MS: %d\n", *msg_size);
-            for (int i = 0; i < message_size; i++) {
-                printf("%02X ", (*message_string)[i]); // Vypíše každý byte pole jako hexadecimální číslo
-            }
-
             break;
         }
 
@@ -300,7 +295,7 @@ int free_command(Command *command) {
 
 uint16_t message_id = 0;
 
-int send_message_from_command(Command *command, int socket_fd) {
+int send_message_from_command(Command *command, int socket_fd, struct sockaddr_in *socket_address) {
     ssize_t result;
     switch (command->command_type) {
         case CMD_AUTH:
@@ -324,7 +319,11 @@ int send_message_from_command(Command *command, int socket_fd) {
     int msg_size;
     create_msg_string_from_command(command, &message_string, &msg_size);
 
-    result = send(socket_fd, message_string, msg_size, 0);
+    result = sendto(socket_fd,
+                     message_string,
+                     msg_size, 0,
+                     (struct sockaddr *)socket_address,
+                     sizeof(*socket_address));
     if (result == -1) {
         free(message_string);
         return 1;

@@ -23,6 +23,8 @@ const unsigned int STDIN_BUFF_SIZE = 1402;
 
 char local_display_name[DISPLAY_NAME_MAX_LEN];
 
+CommunicationState current_state = S_START;
+
 int main(int argc, char *argv[]) {
 
     if (argc == 2 && strcmp(argv[1], "-h") == 0) {
@@ -65,11 +67,12 @@ int main(int argc, char *argv[]) {
 
     struct epoll_event events[MAX_EVENTS];
 
-    //TODO: proc to pise connected i kdyz ten server nebezi?
-    ret_value = udp_connect(socket_fd,
-                            inet_ntoa(*ip_address),
-                            arguments->server_port);
-    if (ret_value == 1) return 1; //TODO
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_port = htons(arguments->server_port);
+    inet_pton(AF_INET, arguments->server_ip_or_hostname, &address.sin_addr.s_addr);
+
+    unsigned int addr_len;
 
     while (true) {
         int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -102,7 +105,7 @@ int main(int argc, char *argv[]) {
             if (parse_command(line, cmd_type, &command, local_display_name) == 1) // spatny command, cekej dal
                 continue;
 
-            if (send_message_from_command(&command, socket_fd) == 1) {
+            if (send_message_from_command(&command, socket_fd, &address) == 1) {
                 free_command(&command);
                 return 1;//TODO
             }
@@ -112,11 +115,14 @@ int main(int argc, char *argv[]) {
             printf("stdin event happened first: '%s'\n", line);
         } else {
             char response[RES_BUFF_SIZE];
-            ret_value = recv(socket_fd, response, RES_BUFF_SIZE, 0);
+            //predat parametr strukturu s sockaddr
+            ret_value = recvfrom(socket_fd, response, RES_BUFF_SIZE, 0, (struct sockaddr *)&address, &addr_len);
             //TODO: na konci response jsou spatne znaky 
             if (ret_value == -1) exit(99); //TODO
             if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
             printf("socket event happened first: '%s'\n", response);
+
+            
         }
     }
 

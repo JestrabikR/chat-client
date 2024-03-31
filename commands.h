@@ -32,7 +32,9 @@ CommandType get_command_type(char *command_str);
 */
 int parse_command(char *line, CommandType cmd_type, Command *command, char *disp_name);
 
-int send_message_from_command(Command *command, int socket_fd);
+typedef struct sockaddr_in* sockaddr_in_ptr;
+
+int send_message_from_command(Command *command, int socket_fd, sockaddr_in_ptr socket_address);
 
 /**
  * @return 0 on success, 1 if wrong command is passed
