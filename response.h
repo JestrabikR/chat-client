@@ -25,4 +25,6 @@ int get_response_type(char *response_msg, MessageType *response_type);
 */
 int parse_response(char *response_msg, MessageType message_type, Response *response, SM_Queue *sm_queue);
 
+void free_response(Response *response);
+
 #endif

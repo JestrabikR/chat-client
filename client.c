@@ -77,7 +77,7 @@ void udp_send_bye_wait_for_confirm() {
             continue; //TODO: asi ignorovat?
         } else {
             char response_msg[RES_BUFF_SIZE];
-            unsigned int addr_len;
+            unsigned int addr_len = 0;
 
             int ret_value = recvfrom(socket_fd,
                                 response_msg,
@@ -98,6 +98,7 @@ void udp_send_bye_wait_for_confirm() {
                 exit(99); //TODO
             }
             if (response_type == MT_CONFIRM) {
+                free_response(&response);
                 break;
             }
         }
@@ -176,7 +177,7 @@ int main(int argc, char *argv[]) {
 
     ret_value = setup_udp();
 
-    unsigned int addr_len;
+    unsigned int addr_len = 0;
 
     while (true) {
         if (current_state == S_ERROR) {
@@ -270,6 +271,8 @@ int main(int argc, char *argv[]) {
                 fprintf(stderr, "ERR FROM %s: %s\n", response.err_message.display_name, response.err_message.message_content);
                 current_state = S_ERROR;
             }
+
+            free_response(&response);
         }
     }
 

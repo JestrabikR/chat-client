@@ -162,3 +162,21 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
 
     return 0;
 }
+
+void free_response(Response *response) {
+    switch (response->response_type) {
+        case MT_MSG:
+            free(response->message.display_name);
+            free(response->message.message_content);
+            break;
+        case MT_ERR:
+            free(response->err_message.display_name);
+            free(response->err_message.message_content);
+            break;
+        case MT_REPLY:
+            free(response->reply_message.message_content);
+            break;
+        default:
+            break;
+    }
+}
