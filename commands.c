@@ -317,6 +317,10 @@ void free_command(Command *command) {
 
 uint16_t message_id = 0;
 
+uint16_t get_message_id_and_inc() {
+    return message_id++;
+}
+
 int send_message_from_command(Command *command, int socket_fd, struct sockaddr_in *socket_address, SM_Queue *sm_queue) {
     
     sm_queue_enqueue(sm_queue, message_id);

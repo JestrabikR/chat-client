@@ -30,6 +30,11 @@ typedef struct {
 CommandType get_command_type(char *command_str);
 
 /**
+ * @returns current message id then increases it by one
+*/
+uint16_t get_message_id_and_inc();
+
+/**
  * @brief returns correct command in parameter
  * @returns 0 on success, 1 on error
 */
