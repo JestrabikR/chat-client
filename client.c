@@ -42,60 +42,74 @@ struct epoll_event stdin_event;
 CmdArguments *arguments;
 
 SM_Queue sm_queue;
-    
+
+void clean_up() {
+    free(arguments);
+    sm_queue_free(&sm_queue);
+    int epoll_closed = close(epoll_fd);
+    int socket_closed = close(socket_fd);
+    if (epoll_closed != 0 || socket_closed != 0) exit(99);
+}
+
+void udp_send_bye_wait_for_confirm() {
+    Command bye_command = {
+            .command_type = CMD_EXIT
+        };
+
+    //TODO: tady se muze udelat while a posilat dokola bye, ale musi se prvni udelat timeout
+
+    char *message_string;
+    int msg_size;
+    create_msg_string_from_command(&bye_command, &message_string, &msg_size);
+
+    if (send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
+        free(message_string);
+        exit(99); //TODO
+    }
+    free(message_string);
+
+
+    while (true) {
+        int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+        if (event_count == -1) exit(99); //TODO
+
+        if (events[0].data.fd == stdin_fd) {
+            continue; //TODO: asi ignorovat?
+        } else {
+            char response_msg[RES_BUFF_SIZE];
+            unsigned int addr_len;
+
+            int ret_value = recvfrom(socket_fd,
+                                response_msg,
+                                RES_BUFF_SIZE, 0,
+                                (struct sockaddr *)&address,
+                                &addr_len);
+
+            if (ret_value == -1) exit(99); //TODO
+            if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
+
+            MessageType response_type;
+            if (get_response_type(response_msg, &response_type) == 1) {
+                continue; // ignorovat spatny typ
+            }
+
+            Response response;
+            if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
+                exit(99); //TODO
+            }
+            if (response_type == MT_CONFIRM) {
+                break;
+            }
+        }
+    }
+}
+
 void sigint_handler(int sig_no)
 {
     (void)sig_no; // odchytava se pouze SIGINT, tak aby se odstranilo varovani pri prekladu
     if (arguments->is_udp) {
-        Command bye_command = {
-            .command_type = CMD_EXIT
-        };
-
-        char *message_string;
-        int msg_size;
-        create_msg_string_from_command(&bye_command, &message_string, &msg_size);
-
-        if (send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
-            sm_queue_free(&sm_queue);
-            free_command(&bye_command);
-            exit(99); //TODO
-        }
-        sm_queue_free(&sm_queue);
-        free_command(&bye_command);
-
-        while (true) {
-            int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-            if (event_count == -1) exit(99); //TODO
-
-            if (events[0].data.fd == stdin_fd) {
-                continue; //TODO: asi ignorovat?
-            } else {
-                char response_msg[RES_BUFF_SIZE];
-                unsigned int addr_len;
-
-                int ret_value = recvfrom(socket_fd,
-                                    response_msg,
-                                    RES_BUFF_SIZE, 0,
-                                    (struct sockaddr *)&address,
-                                    &addr_len);
-
-                if (ret_value == -1) exit(99); //TODO
-                if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
-
-                MessageType response_type;
-                if (get_response_type(response_msg, &response_type) == 1)
-                    exit(99); //TODO spatny typ => asi SEND ERR
-
-                Response response;
-                if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
-                    exit(99); //TODO
-                }
-                if (response_type == MT_CONFIRM) {
-                    break;
-                }
-            }
-
-        }
+        udp_send_bye_wait_for_confirm();
+        clean_up();
     }
     else {
         //TODO: send bye using TCP
@@ -166,7 +180,9 @@ int main(int argc, char *argv[]) {
 
     while (true) {
         if (current_state == S_ERROR) {
-            //TODO: send Bye
+            udp_send_bye_wait_for_confirm();
+            clean_up();
+            return 0; //TODO po erroru skoncit s 0?
         }
 
         int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -237,9 +253,11 @@ int main(int argc, char *argv[]) {
             }
 
             if (response_type == MT_REPLY && response.reply_message.result && auth_sent) {
-                current_state = S_OPEN;
+                current_state = S_OPEN; //TODO: jenom test
+                auth_sent = false;
             } 
 
+            //TODO: predelat sm_queue z message_ids na to abych vedel co to bylo za zpravu
             if (response_type == MT_REPLY) {
                 if (response.reply_message.result) {
                     fprintf(stderr, "Success: %s\n", response.reply_message.message_content);
@@ -255,12 +273,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    //TODO: vytvorit nejakou clean_up() funkci
-    free(arguments);
-    sm_queue_free(&sm_queue);
-    int epoll_closed = close(epoll_fd);
-    int socket_closed = close(epoll_fd);
-    if (epoll_closed != 0 || socket_closed != 0) exit(99); //TODO
+    clean_up();
 
     return 0;
 }

@@ -110,7 +110,7 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
 
     switch (cmd_type) {
         case CMD_AUTH:
-            //TODO: POZOR tady se alokuje username, secret a display name - free po odeslani
+            // POZOR tady se alokuje username, secret a display name - free po odeslani
             if (parse_auth_command(line, &command->auth_message, disp_name) == 1) {
                 fprintf(stderr, "ERR: Wrong command format\n");
                 return 1;
