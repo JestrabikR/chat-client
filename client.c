@@ -58,15 +58,9 @@ void udp_send_bye_wait_for_confirm() {
 
     //TODO: tady se muze udelat while a posilat dokola bye, ale musi se prvni udelat timeout
 
-    char *message_string;
-    int msg_size;
-    create_msg_string_from_command(&bye_command, &message_string, &msg_size);
-
     if (send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
-        free(message_string);
         exit(99); //TODO
     }
-    free(message_string);
 
 
     while (true) {
@@ -102,6 +96,23 @@ void udp_send_bye_wait_for_confirm() {
                 break;
             }
         }
+    }
+}
+
+void udp_send_confirm(uint16_t message_id) {
+    ConfirmMessage confirm_message = {
+        .msg_type = MT_CONFIRM,
+        .ref_message_id = htons(message_id) //prevod na server endianitu
+    };
+
+    int result = sendto(socket_fd,
+                     &confirm_message,
+                     sizeof(confirm_message), 0,
+                     (struct sockaddr *)&address,
+                     sizeof(address));
+    if (result == -1) {
+        clean_up();
+        exit(1);
     }
 }
 
@@ -250,6 +261,7 @@ int main(int argc, char *argv[]) {
 
             Response response;
             if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
+                clean_up();
                 exit(99); //TODO
             }
 
@@ -265,11 +277,22 @@ int main(int argc, char *argv[]) {
                 } else {
                     fprintf(stderr, "Failure: %s\n", response.reply_message.message_content);
                 }
+                udp_send_confirm(response.reply_message.message_id);
+
             } else if (response_type == MT_MSG) {
                 printf("%s: %s\n", response.message.display_name, response.message.message_content);
+                udp_send_confirm(response.message.message_id);
+
             } else if (response_type == MT_ERR) {
                 fprintf(stderr, "ERR FROM %s: %s\n", response.err_message.display_name, response.err_message.message_content);
+                udp_send_confirm(response.err_message.message_id);
                 current_state = S_ERROR;
+
+            } else if (response_type == MT_BYE) {
+                udp_send_confirm(response.bye_message.message_id);
+                clean_up();
+                free_response(&response);
+                return 0;
             }
 
             free_response(&response);

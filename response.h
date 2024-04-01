@@ -11,6 +11,7 @@ typedef struct {
         ReplyMessage reply_message;
         ConfirmMessage confirm_message;
         Message message;
+        ByeMessage bye_message;
     };
 } Response;
 

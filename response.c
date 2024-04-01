@@ -153,6 +153,20 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
                 exit(99); //TODO: cleanup() / err / bye ??
             }
             strcpy(response->err_message.message_content, pos);
+            
+            break;
+        }
+
+        case MT_BYE: {
+            response->bye_message.msg_type = MT_BYE;
+
+            memcpy(&response->bye_message,
+                    response_msg + sizeof(response->bye_message.msg_type),
+                    sizeof(response->bye_message.message_id));
+            // prevod little na big endian
+            response->bye_message.message_id = ntohs(response->bye_message.message_id);
+
+            break;
         }
 
         default:
