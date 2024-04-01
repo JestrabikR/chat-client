@@ -57,13 +57,14 @@ void sigint_handler(int sig_no)
     exit(EXIT_SUCCESS);
 }
 
-int setup_udp() {
-    socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (socket_fd == -1)
-        return 1;
+int setup_socket() {
+    if (arguments->is_udp) {
+        socket_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    } else {
+        socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    }
 
-    epoll_fd = epoll_create1(0);
-    if (epoll_fd == -1)
+    if (socket_fd == -1)
         return 1;
 
     socket_event.events = EPOLLIN;
@@ -72,11 +73,29 @@ int setup_udp() {
     socket_event.data.fd = socket_fd;
     stdin_event.data.fd = stdin_fd;
 
+    return 0;
+}
+
+int setup_epoll() {
+    epoll_fd = epoll_create1(0);
+    if (epoll_fd == -1)
+        return 1;
+
     int ret_value = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, socket_fd, &socket_event);
     if (ret_value == -1)
         return 1;
     ret_value = epoll_ctl(epoll_fd, EPOLL_CTL_ADD, stdin_fd, &stdin_event);
     if (ret_value == -1)
+        return 1;
+    
+    return 0;
+}
+
+int setup_udp() {
+    if (setup_socket() == 1)
+        return 1;
+
+    if (setup_epoll() == 1)
         return 1;
 
     address.sin_family = AF_INET;
@@ -85,6 +104,26 @@ int setup_udp() {
     
     return 0;
 }
+
+int setup_tcp() {
+    if (setup_socket() == 1)
+        return 1;
+    
+    if (setup_epoll() == 1)
+        return 1;
+
+    struct sockaddr_in server_address;
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(arguments->server_port);
+    inet_pton(AF_INET, arguments->server_ip_or_hostname, &server_address.sin_addr);
+
+    if (connect(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) == -1)
+        return 1;
+
+    return 0;
+}
+
 
 int main(int argc, char *argv[]) {
 
@@ -113,15 +152,27 @@ int main(int argc, char *argv[]) {
 
     signal(SIGINT, sigint_handler);
 
-    ret_value = setup_udp();
+    if (arguments->is_udp) {
+        if(setup_udp() != 0) {
+            current_state = S_ERROR;
+        }
+    } else {
+        if (setup_tcp() != 0) {
+            current_state = S_ERROR;
+        }
+    }
 
     unsigned int addr_len = 0;
 
     while (true) {
         if (current_state == S_ERROR) {
-            udp_send_bye_wait_for_confirm();
-            clean_up();
-            return 0; //TODO po erroru skoncit s 0?
+            if (arguments->is_udp) {
+                udp_send_bye_wait_for_confirm();
+                clean_up();
+                return 0; //TODO po erroru skoncit s 0?
+            } else {
+                //TODO: tcp
+            }
         }
 
         int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
@@ -160,21 +211,32 @@ int main(int argc, char *argv[]) {
             if (parse_command(line, cmd_type, &command, local_display_name) == 1) // spatny command, cekej dal
                 continue;
 
-            if (send_message_from_command(&command, socket_fd, &address, &sm_queue) == 1) {
-                free_command(&command);
-                return 1;//TODO
+            if (arguments->is_udp) {    
+                if (send_message_from_command(&command, socket_fd, &address, &sm_queue) == 1) {
+                    free_command(&command);
+                    return 1;//TODO
+                }
+            } else {
+                //TODO: tcp send
             }
+
             if (cmd_type == CMD_AUTH) auth_sent = true;
             
             free_command(&command);
         } else {
             char response_msg[RES_BUFF_SIZE];
 
-            ret_value = recvfrom(socket_fd,
+            if (arguments->is_udp) {
+                ret_value = recvfrom(socket_fd,
                                 response_msg,
                                 RES_BUFF_SIZE, 0,
                                 (struct sockaddr *)&address,
                                 &addr_len);
+            } else {
+                ret_value = recv(socket_fd,
+                                response_msg,
+                                RES_BUFF_SIZE, 0);
+            }
 
             if (ret_value == -1) exit(99); //TODO
             if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
@@ -186,7 +248,13 @@ int main(int argc, char *argv[]) {
                 response_type != MT_REPLY && response_type != MT_ERR &&
                 response_type != MT_BYE && response_type != MT_CONFIRM)) {
                     fprintf(stderr, "ERR: Wrong type of message sent - not allowed in this state\n");
-                    udp_send_error_wait_for_confirm("Wrong type of message sent - not allowed in this state");
+
+                    if (arguments->is_udp) {
+                        udp_send_error_wait_for_confirm("Wrong type of message sent - not allowed in this state");
+                    } else {
+                        //TODO: tcp
+                    }
+
                     current_state = S_ERROR; //v nove iteraci se odesle bye a skonci se
                     continue;
                     
@@ -199,7 +267,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (response_type == MT_REPLY && response.reply_message.result && auth_sent) {
-                current_state = S_OPEN; //TODO: jenom test
+                current_state = S_OPEN;
                 auth_sent = false;
             } 
 
@@ -210,11 +278,19 @@ int main(int argc, char *argv[]) {
                 } else {
                     fprintf(stderr, "Failure: %s\n", response.reply_message.message_content);
                 }
-                udp_send_confirm(response.reply_message.message_id);
+                if (arguments->is_udp) {
+                    udp_send_confirm(response.reply_message.message_id);
+                } else {
+                    //TODO tcp
+                }
 
             } else if (response_type == MT_MSG) {
                 printf("%s: %s\n", response.message.display_name, response.message.message_content);
-                udp_send_confirm(response.message.message_id);
+                if (arguments->is_udp) {
+                    udp_send_confirm(response.message.message_id);
+                } else {
+                    //TODO: tcp
+                }
 
             } else if (response_type == MT_ERR) {
                 fprintf(stderr, "ERR FROM %s: %s\n", response.err_message.display_name, response.err_message.message_content);
@@ -222,7 +298,12 @@ int main(int argc, char *argv[]) {
                 current_state = S_ERROR; //v nove iteraci se odesle bye a skonci se
 
             } else if (response_type == MT_BYE) {
-                udp_send_confirm(response.bye_message.message_id);
+                if (arguments->is_udp) {
+                    udp_send_confirm(response.bye_message.message_id);
+                } else {
+                    //TODO: tcp
+                }
+
                 clean_up();
                 free_response(&response);
                 return 0;
@@ -347,9 +428,13 @@ void udp_send_error_wait_for_confirm(char *message_content) {
 }
 
 void clean_up() {
-    free(arguments);
-    sm_queue_free(&sm_queue);
-    int epoll_closed = close(epoll_fd);
-    int socket_closed = close(socket_fd);
-    if (epoll_closed != 0 || socket_closed != 0) exit(99);
+    if (arguments->is_udp) {
+        free(arguments);
+        sm_queue_free(&sm_queue);
+        int epoll_closed = close(epoll_fd);
+        int socket_closed = close(socket_fd);
+        if (epoll_closed != 0 || socket_closed != 0) exit(99);
+    } else {
+        //TODO: tcp
+    }
 }

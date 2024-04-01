@@ -19,4 +19,8 @@ void udp_send_confirm(uint16_t message_id);
 */
 int setup_udp();
 
+int setup_tcp();
+
+int setup_epoll();
+
 #endif
