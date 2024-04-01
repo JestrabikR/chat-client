@@ -20,7 +20,7 @@ void print_help() {
         "-d	250	uint16	UDP confirmation timeout\n"
         "-r	3	uint8	Maximum number of UDP retransmissions\n"
         "-h			Prints program help output and exits\n";
-    printf(help_string);
+    printf("%s", help_string);
 }
 
 void print_command_help() {
@@ -29,7 +29,7 @@ void print_command_help() {
         "/rename	{DisplayName}	Locally changes the display name of the user to be sent with new messages/selected commands\n\n"
         "/help		Prints out supported local commands with their parameters and a description\n";
 
-    printf(help_command_string);
+    printf("%s\n", help_command_string);
 }
 
 int parse_arguments(int argc, char *argv[], CmdArguments *arguments) {
@@ -45,7 +45,6 @@ int parse_arguments(int argc, char *argv[], CmdArguments *arguments) {
 
     int c;
 
-    //TODO: p,d,r muze user zadat, ale jinak ma defaultni hodnotu?
     while ((c = getopt (argc, argv, "t:s:p:d:r:")) != -1)
         switch (c) {
             case 't':

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define USERNAME_MAX_LEN 21 //TODO: 20 + 1 na '\0'?
+#define USERNAME_MAX_LEN 21 // 20 + 1 for '\0'?
 #define CHANNEL_ID_MAX_LEN 21
 #define SECRET_MAX_LEN 129
 #define DISPLAY_NAME_MAX_LEN 21

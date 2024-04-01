@@ -11,7 +11,7 @@ int get_response_type(char *response_msg, MessageType *response_type) {
 
     memcpy(response_type, response_msg, sizeof(MessageType));
 
-    //pokud bude prvni byte bude jiny nez typy z enumu -> chyba
+    // if first byte is different from every enum value -> error
     if (*response_type != MT_AUTH && *response_type != MT_BYE &&
         *response_type != MT_CONFIRM && *response_type != MT_ERR &&
         *response_type != MT_JOIN && *response_type != MT_MSG &&
@@ -31,7 +31,7 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             memcpy(&response->confirm_message.ref_message_id,
                     response_msg + sizeof(response->confirm_message.msg_type),
                     sizeof(response->confirm_message.ref_message_id));
-            // prevod little na big endian
+            // conversion from big to little endian
             response->confirm_message.ref_message_id = ntohs(response->confirm_message.ref_message_id);
             
 
@@ -39,12 +39,12 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
                 uint16_t msg_id;
                 sm_queue_peek(sm_queue, &msg_id);
 
-                // spravny confirm
+                // correct confirm
                 if (response->confirm_message.ref_message_id == msg_id) {
-                    // odstraneni z queue
+                    // remove from queuq
                     sm_queue_dequeue(sm_queue, &msg_id);
-                } //jinak se ceka na dalsi a tento se ignoruje
-            } //TODO else
+                } // else wait for next confirm and ignore this
+            }
 
             break;
         }
@@ -60,7 +60,7 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             memcpy(&response->reply_message.message_id,
                     pos,
                     sizeof(response->reply_message.message_id));
-            // prevod little na big endian
+            // conversion from big to little endian
             response->reply_message.message_id = ntohs(response->reply_message.message_id);
             
             pos += sizeof(response->reply_message.message_id);
@@ -82,7 +82,7 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             // char *message_content;
             response->reply_message.message_content = malloc(strlen(pos) + 1);
             if (response->reply_message.message_content == NULL) {
-                exit(99); //TODO: cleanup() / err / bye ??
+                return 1;
             }
             strcpy(response->reply_message.message_content, pos);
 
@@ -101,7 +101,7 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             memcpy(&response->message.message_id,
                     pos,
                     sizeof(response->message.message_id));
-            // prevod little na big endian
+            // conversion from big to little endian
             response->message.message_id = ntohs(response->message.message_id);
             
             pos += sizeof(response->message.message_id);
@@ -109,14 +109,14 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             // char *display_name;
             response->message.display_name = malloc(strlen(pos) + 1);
             if (response->message.display_name == NULL) {
-                exit(99); //TODO: cleanup() / err / bye ??
+                return 1;
             }
             strcpy(response->message.display_name, pos);
             
             // char *message_content;
             response->message.message_content = malloc(strlen(pos) + 1);
             if (response->message.message_content == NULL) {
-                exit(99); //TODO: cleanup() / err / bye ??
+                return 1;
             }
             strcpy(response->message.message_content, pos);
 
@@ -135,7 +135,7 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             memcpy(&response->err_message.message_id,
                     pos,
                     sizeof(response->err_message.message_id));
-            // prevod little na big endian
+            // conversion from big to little endian
             response->err_message.message_id = ntohs(response->err_message.message_id);
             
             pos += sizeof(response->err_message.message_id);
@@ -143,14 +143,14 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             // char *display_name;
             response->err_message.display_name = malloc(strlen(pos) + 1);
             if (response->err_message.display_name == NULL) {
-                exit(99); //TODO: cleanup() / err / bye ??
+                return 1;
             }
             strcpy(response->err_message.display_name, pos);
             
             // char *message_content;
             response->err_message.message_content = malloc(strlen(pos) + 1);
             if (response->err_message.message_content == NULL) {
-                exit(99); //TODO: cleanup() / err / bye ??
+                return 1;
             }
             strcpy(response->err_message.message_content, pos);
             
@@ -163,14 +163,13 @@ int parse_response(char *response_msg, MessageType message_type, Response *respo
             memcpy(&response->bye_message,
                     response_msg + sizeof(response->bye_message.msg_type),
                     sizeof(response->bye_message.message_id));
-            // prevod little na big endian
+            // conversion from big to little endian
             response->bye_message.message_id = ntohs(response->bye_message.message_id);
 
             break;
         }
 
         default:
-            //TODO
             break;
     }
 

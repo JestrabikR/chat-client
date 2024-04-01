@@ -42,7 +42,7 @@ int parse_command(char *line, CommandType cmd_type, Command *command, char *disp
 
 typedef struct sockaddr_in* sockaddr_in_ptr;
 
-int send_message_from_command(Command *command, int socket_fd, sockaddr_in_ptr socket_address, SM_Queue *sm_queue);
+int udp_send_message_from_command(Command *command, int socket_fd, sockaddr_in_ptr socket_address, SM_Queue *sm_queue);
 
 /**
  * @return 0 on success, 1 if wrong command is passed
@@ -53,6 +53,6 @@ void free_command(Command *command);
  * @brief allocates and arranges message_string to send
  * @returns 0 on success, 1 on error
 */
-int create_msg_string_from_command(Command *command, char **message_string, int *msg_size);
+int udp_create_msg_string_from_command(Command *command, char **message_string, int *msg_size);
 
 #endif

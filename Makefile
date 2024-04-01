@@ -2,8 +2,8 @@ CC=gcc
 CFLAGS= -g -std=c11 -pedantic -Wall -Wextra
 .PHONY: clean run
 
-client: helpers.c commands.c response.c sent_messages_queue.c
-	$(CC) $(CFLAGS) $@.c $^ -o $@
+ipk24chat-client: helpers.c commands.c response.c sent_messages_queue.c tcp.c
+	$(CC) $(CFLAGS) main.c $^ -o $@
 
 clean:
-	rm -f client
+	rm -f ipk24chat-client

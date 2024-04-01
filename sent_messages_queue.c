@@ -66,10 +66,9 @@ bool sm_queue_dequeue(SM_Queue *sm_queue, uint16_t *message_id) {
 
 bool sm_queue_peek(SM_Queue *sm_queue, uint16_t *message_id) {
     if (sm_queue->front == NULL) {
-        // Pokud je fronta prázdná, není co nahlížet
         return false;
     }
-    // Uložíme hodnotu z prvního prvku fronty
+    
     *message_id = sm_queue->front->data;
     return true;
 }

@@ -7,17 +7,16 @@
 #include <stdbool.h>
 #include <signal.h>
 
-#include "client.h"
+#include "main.h"
 #include "messages.h"
 #include "communication.h"
 #include "helpers.h"
 #include "commands.h"
 #include "response.h"
 #include "sent_messages_queue.h"
+#include "tcp.h"
 
 #define MAX_EVENTS 3
-
-#define PRINT_LINE() printf("%d\n", __LINE__) //REMOVE for testing only
 
 int inet_pton(int af, const char *restrict src, void *restrict dst);
 
@@ -43,16 +42,16 @@ CmdArguments *arguments;
 
 SM_Queue sm_queue;
 
-void sigint_handler(int sig_no)
-{
-    (void)sig_no; // odchytava se pouze SIGINT, tak aby se odstranilo varovani pri prekladu
+void sigint_handler(int sig_no) {
+    (void)sig_no; // only SIGINT signal can happen, this line is to suppress warning
     if (arguments->is_udp) {
         udp_send_bye_wait_for_confirm();
-        clean_up();
     }
     else {
-        //TODO: send bye using TCP
+        tcp_send_bye(socket_fd);
     }
+
+    clean_up();
 
     exit(EXIT_SUCCESS);
 }
@@ -141,11 +140,13 @@ int main(int argc, char *argv[]) {
     int ret_value;
 
     bool auth_sent = false;
-    
-    ret_value = parse_arguments(argc, argv, arguments);
-    if (ret_value == 1) exit(99); //TODO
+    bool authenticated = false;
 
-    if (get_ip_address(arguments->server_ip_or_hostname, &ip_address) == 1) exit(99); //TODO: handle correctly
+    ret_value = parse_arguments(argc, argv, arguments);
+    if (ret_value == 1) return 1;
+
+    if (get_ip_address(arguments->server_ip_or_hostname, &ip_address) == 1)
+        return 1;
     
     if (arguments->is_udp)
         sm_queue_init(&sm_queue);
@@ -168,19 +169,22 @@ int main(int argc, char *argv[]) {
         if (current_state == S_ERROR) {
             if (arguments->is_udp) {
                 udp_send_bye_wait_for_confirm();
-                clean_up();
-                return 0; //TODO po erroru skoncit s 0?
             } else {
-                //TODO: tcp
+                tcp_send_bye(socket_fd);
             }
+            clean_up();
+            return 0;
         }
 
         int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-        if (event_count == -1) exit(99); //TODO
+        if (event_count == -1) {
+            handle_error();
+            continue;
+        }
 
         if (events[0].data.fd == stdin_fd) {
             char line[STDIN_BUFF_SIZE];
-            fgets(line, STDIN_BUFF_SIZE, stdin); // fgets uklada i \n
+            fgets(line, STDIN_BUFF_SIZE, stdin); // fgets stores \n
             line[strcspn(line, "\n")] = '\0';
 
             if (is_empty(line) == true)
@@ -199,28 +203,48 @@ int main(int argc, char *argv[]) {
                 }
                 strcpy(local_display_name, new_name);
                 continue;
+            
+            }
+            
+            else if (cmd_type == CMD_AUTH && authenticated) {
+                fprintf(stderr, "ERR: You are already authenticated\n");
+                continue;
+
             } else if (cmd_type == CMD_MESSAGE && current_state != S_OPEN) {
                 fprintf(stderr, "ERR: Cannot send message right now (you have to be authenticated)\n");
                 continue;
+            
             } else if (cmd_type == CMD_JOIN && current_state != S_OPEN) {
                 fprintf(stderr, "ERR: Cannot join channel right now (you have to be authenticated)\n");
                 continue;
             }
 
             Command command;
-            if (parse_command(line, cmd_type, &command, local_display_name) == 1) // spatny command, cekej dal
-                continue;
+            if (parse_command(line, cmd_type, &command, local_display_name) == 1)
+                continue; // wrong command, skip, wait for another
 
             if (arguments->is_udp) {    
-                if (send_message_from_command(&command, socket_fd, &address, &sm_queue) == 1) {
+                if (udp_send_message_from_command(&command, socket_fd, &address, &sm_queue) == 1) {
                     free_command(&command);
-                    return 1;//TODO
+                    handle_error();
+                    continue;
                 }
             } else {
-                //TODO: tcp send
+                if (tcp_send_message_from_command(&command, socket_fd) == 1) {
+                    handle_error();
+                    free_command(&command);
+                    continue;
+                }
+
             }
 
-            if (cmd_type == CMD_AUTH) auth_sent = true;
+            if (cmd_type == CMD_AUTH) {
+                if (arguments->is_udp == false) {
+                    authenticated = true;
+                    current_state = S_OPEN;
+                }
+                auth_sent = true;
+            }
             
             free_command(&command);
         } else {
@@ -238,10 +262,17 @@ int main(int argc, char *argv[]) {
                                 RES_BUFF_SIZE, 0);
             }
 
-            if (ret_value == -1) exit(99); //TODO
-            if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
+            if (ret_value == -1) {
+                handle_error();
+                continue;
+            }
+            if ((unsigned int)ret_value > RES_BUFF_SIZE) {
+                handle_error();
+                continue;
+            }
 
             MessageType response_type;
+
             // spatny typ zpravy nebo typ poslan ve spatnem stavu
             if (get_response_type(response_msg, &response_type) == 1 ||
                 (current_state == S_OPEN && response_type != MT_MSG &&
@@ -252,26 +283,26 @@ int main(int argc, char *argv[]) {
                     if (arguments->is_udp) {
                         udp_send_error_wait_for_confirm("Wrong type of message sent - not allowed in this state");
                     } else {
-                        //TODO: tcp
+                        tcp_send_error(socket_fd, "Wrong type of message sent - not allowed in this state", local_display_name);
                     }
 
-                    current_state = S_ERROR; //v nove iteraci se odesle bye a skonci se
+                    current_state = S_ERROR; // BYE will be sent in next iteration and program will end
                     continue;
                     
                 }
                 
             Response response;
             if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
-                clean_up();
-                exit(99); //TODO
+                handle_error();
+                continue;
             }
 
             if (response_type == MT_REPLY && response.reply_message.result && auth_sent) {
                 current_state = S_OPEN;
                 auth_sent = false;
+                authenticated = true;
             } 
 
-            //TODO: predelat sm_queue z message_ids na to abych vedel co to bylo za zpravu
             if (response_type == MT_REPLY) {
                 if (response.reply_message.result) {
                     fprintf(stderr, "Success: %s\n", response.reply_message.message_content);
@@ -280,28 +311,22 @@ int main(int argc, char *argv[]) {
                 }
                 if (arguments->is_udp) {
                     udp_send_confirm(response.reply_message.message_id);
-                } else {
-                    //TODO tcp
                 }
 
             } else if (response_type == MT_MSG) {
                 printf("%s: %s\n", response.message.display_name, response.message.message_content);
                 if (arguments->is_udp) {
                     udp_send_confirm(response.message.message_id);
-                } else {
-                    //TODO: tcp
                 }
 
             } else if (response_type == MT_ERR) {
                 fprintf(stderr, "ERR FROM %s: %s\n", response.err_message.display_name, response.err_message.message_content);
                 udp_send_confirm(response.err_message.message_id);
-                current_state = S_ERROR; //v nove iteraci se odesle bye a skonci se
+                current_state = S_ERROR; // BYE will be sent in next iteration and program will end
 
             } else if (response_type == MT_BYE) {
                 if (arguments->is_udp) {
                     udp_send_confirm(response.bye_message.message_id);
-                } else {
-                    //TODO: tcp
                 }
 
                 clean_up();
@@ -318,10 +343,11 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void wait_for_confirm() {
+int wait_for_confirm() {
     while (true) {
         int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-        if (event_count == -1) exit(99); //TODO
+        if (event_count == -1)
+            return 1;
 
         if (events[0].data.fd == stdin_fd) {
             continue; // ignoruje se
@@ -335,17 +361,18 @@ void wait_for_confirm() {
                                 (struct sockaddr *)&address,
                                 &addr_len);
 
-            if (ret_value == -1) exit(99); //TODO
-            if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
+            if (ret_value == -1) {
+                return 1;
+            }
 
             MessageType response_type;
             if (get_response_type(response_msg, &response_type) == 1) {
-                continue; // ignorovat spatny typ
+                continue; // wrong type -> ignore it
             }
 
             Response response;
             if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
-                exit(99); //TODO
+                return 1;
             }
             if (response_type == MT_CONFIRM) {
                 free_response(&response);
@@ -353,26 +380,28 @@ void wait_for_confirm() {
             }
         }
     }
+    return 0;
 }
 
-void udp_send_bye_wait_for_confirm() {
+int udp_send_bye_wait_for_confirm() {
     Command bye_command = {
             .command_type = CMD_EXIT
         };
 
-    //TODO: tady se muze udelat while a posilat dokola bye, ale musi se prvni udelat timeout
-
-    if (send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
-        exit(99); //TODO
+    if (udp_send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
+        return 1;
     }
 
-    wait_for_confirm();
+    if (wait_for_confirm() == 1)
+        return 1;
+    
+    return 0;
 }
 
-void udp_send_confirm(uint16_t message_id) {
+int udp_send_confirm(uint16_t message_id) {
     ConfirmMessage confirm_message = {
         .msg_type = MT_CONFIRM,
-        .ref_message_id = htons(message_id) //prevod na server endianitu
+        .ref_message_id = htons(message_id) // conversion to server endianity (big endian)
     };
 
     int result = sendto(socket_fd,
@@ -381,21 +410,21 @@ void udp_send_confirm(uint16_t message_id) {
                      (struct sockaddr *)&address,
                      sizeof(address));
     if (result == -1) {
-        clean_up();
-        exit(1);
+        return 1;
     }
+
+    return 0;
 }
 
-void udp_send_error_wait_for_confirm(char *message_content) {
+int udp_send_error_wait_for_confirm(char *message_content) {
     ErrMessage error_message = {
         .msg_type = MT_ERR,
-        .message_id = htons(get_message_id_and_inc()), //prevod na server endianitu
+        .message_id = htons(get_message_id_and_inc()), // conversion to server endianity (big endian)
     };
 
     error_message.display_name = malloc(strlen(local_display_name) + 1);
     if (error_message.display_name == NULL) {
-        clean_up();
-        exit(1);
+        return 1;
     }
 
     strcpy(error_message.display_name, local_display_name);
@@ -403,8 +432,7 @@ void udp_send_error_wait_for_confirm(char *message_content) {
     error_message.message_content = malloc(strlen(message_content) + 1);
     if (error_message.message_content == NULL) {
         free(error_message.message_content);
-        clean_up();
-        exit(1);
+        return 1;
     }
 
     strcpy(error_message.message_content, message_content);
@@ -417,24 +445,34 @@ void udp_send_error_wait_for_confirm(char *message_content) {
     if (result == -1) {
         free(error_message.display_name);
         free(error_message.message_content);
-        clean_up();
-        exit(1);
+        return 1;
     }
 
     free(error_message.display_name);
     free(error_message.message_content);
 
-    wait_for_confirm();
+    if (wait_for_confirm() == 1)
+        return 1;
+
+    return 0;
+}
+
+void handle_error() {
+    current_state = S_ERROR;
+    fprintf(stderr, "ERR: Internal error\n");
+    if (arguments->is_udp) {
+        udp_send_error_wait_for_confirm("Wrong type of message sent - not allowed in this state");
+    } else {
+        tcp_send_error(socket_fd, "Wrong type of message sent - not allowed in this state", local_display_name);
+    }
 }
 
 void clean_up() {
     if (arguments->is_udp) {
-        free(arguments);
         sm_queue_free(&sm_queue);
-        int epoll_closed = close(epoll_fd);
-        int socket_closed = close(socket_fd);
-        if (epoll_closed != 0 || socket_closed != 0) exit(99);
-    } else {
-        //TODO: tcp
     }
+    
+    free(arguments);
+    close(epoll_fd);
+    close(socket_fd);
 }

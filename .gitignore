@@ -1,7 +1,7 @@
 .vscode/
 
 # Compiled file
-client
+ipk24chat-client
 
 # Prerequisites
 *.d
