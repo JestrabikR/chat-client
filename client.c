@@ -43,123 +43,6 @@ CmdArguments *arguments;
 
 SM_Queue sm_queue;
 
-void clean_up() {
-    free(arguments);
-    sm_queue_free(&sm_queue);
-    int epoll_closed = close(epoll_fd);
-    int socket_closed = close(socket_fd);
-    if (epoll_closed != 0 || socket_closed != 0) exit(99);
-}
-
-void wait_for_confirm() {
-    while (true) {
-        int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-        if (event_count == -1) exit(99); //TODO
-
-        if (events[0].data.fd == stdin_fd) {
-            continue; // ignoruje se
-        } else {
-            char response_msg[RES_BUFF_SIZE];
-            unsigned int addr_len = 0;
-
-            int ret_value = recvfrom(socket_fd,
-                                response_msg,
-                                RES_BUFF_SIZE, 0,
-                                (struct sockaddr *)&address,
-                                &addr_len);
-
-            if (ret_value == -1) exit(99); //TODO
-            if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
-
-            MessageType response_type;
-            if (get_response_type(response_msg, &response_type) == 1) {
-                continue; // ignorovat spatny typ
-            }
-
-            Response response;
-            if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
-                exit(99); //TODO
-            }
-            if (response_type == MT_CONFIRM) {
-                free_response(&response);
-                break;
-            }
-        }
-    }
-}
-
-void udp_send_bye_wait_for_confirm() {
-    Command bye_command = {
-            .command_type = CMD_EXIT
-        };
-
-    //TODO: tady se muze udelat while a posilat dokola bye, ale musi se prvni udelat timeout
-
-    if (send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
-        exit(99); //TODO
-    }
-
-    wait_for_confirm();
-}
-
-void udp_send_confirm(uint16_t message_id) {
-    ConfirmMessage confirm_message = {
-        .msg_type = MT_CONFIRM,
-        .ref_message_id = htons(message_id) //prevod na server endianitu
-    };
-
-    int result = sendto(socket_fd,
-                     &confirm_message,
-                     sizeof(confirm_message), 0,
-                     (struct sockaddr *)&address,
-                     sizeof(address));
-    if (result == -1) {
-        clean_up();
-        exit(1);
-    }
-}
-
-void udp_send_error_wait_for_confirm(char *message_content) {
-    ErrMessage error_message = {
-        .msg_type = MT_ERR,
-        .message_id = htons(get_message_id_and_inc()), //prevod na server endianitu
-    };
-
-    error_message.display_name = malloc(strlen(local_display_name) + 1);
-    if (error_message.display_name == NULL) {
-        clean_up();
-        exit(1);
-    }
-
-    strcpy(error_message.display_name, local_display_name);
-
-    error_message.message_content = malloc(strlen(message_content) + 1);
-    if (error_message.message_content == NULL) {
-        free(error_message.message_content);
-        clean_up();
-        exit(1);
-    }
-
-    strcpy(error_message.message_content, message_content);
-
-    int result = sendto(socket_fd,
-                     &error_message,
-                     sizeof(error_message), 0,
-                     (struct sockaddr *)&address,
-                     sizeof(address));
-    if (result == -1) {
-        free(error_message.display_name);
-        free(error_message.message_content);
-        clean_up();
-        exit(1);
-    }
-
-    free(error_message.display_name);
-    free(error_message.message_content);
-
-    wait_for_confirm();
-}
-
 void sigint_handler(int sig_no)
 {
     (void)sig_no; // odchytava se pouze SIGINT, tak aby se odstranilo varovani pri prekladu
@@ -284,8 +167,6 @@ int main(int argc, char *argv[]) {
             if (cmd_type == CMD_AUTH) auth_sent = true;
             
             free_command(&command);
-
-            //printf("stdin event happened first: '%s'\n", line);
         } else {
             char response_msg[RES_BUFF_SIZE];
 
@@ -297,14 +178,13 @@ int main(int argc, char *argv[]) {
 
             if (ret_value == -1) exit(99); //TODO
             if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
-            // printf("socket event happened first: '%s'\n", response_msg);
 
             MessageType response_type;
             // spatny typ zpravy nebo typ poslan ve spatnem stavu
             if (get_response_type(response_msg, &response_type) == 1 ||
-                (current_state == S_OPEN && (response_type != MT_MSG ||
-                response_type != MT_REPLY || response_type != MT_ERR ||
-                response_type != MT_BYE))) {
+                (current_state == S_OPEN && response_type != MT_MSG &&
+                response_type != MT_REPLY && response_type != MT_ERR &&
+                response_type != MT_BYE && response_type != MT_CONFIRM)) {
                     fprintf(stderr, "ERR: Wrong type of message sent - not allowed in this state\n");
                     udp_send_error_wait_for_confirm("Wrong type of message sent - not allowed in this state");
                     current_state = S_ERROR; //v nove iteraci se odesle bye a skonci se
@@ -355,4 +235,121 @@ int main(int argc, char *argv[]) {
     clean_up();
 
     return 0;
+}
+
+void wait_for_confirm() {
+    while (true) {
+        int event_count = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+        if (event_count == -1) exit(99); //TODO
+
+        if (events[0].data.fd == stdin_fd) {
+            continue; // ignoruje se
+        } else {
+            char response_msg[RES_BUFF_SIZE];
+            unsigned int addr_len = 0;
+
+            int ret_value = recvfrom(socket_fd,
+                                response_msg,
+                                RES_BUFF_SIZE, 0,
+                                (struct sockaddr *)&address,
+                                &addr_len);
+
+            if (ret_value == -1) exit(99); //TODO
+            if ((unsigned int)ret_value > RES_BUFF_SIZE) exit(1); //TODO: asi neni potreba exit ne?
+
+            MessageType response_type;
+            if (get_response_type(response_msg, &response_type) == 1) {
+                continue; // ignorovat spatny typ
+            }
+
+            Response response;
+            if (parse_response(response_msg, response_type, &response, &sm_queue) == 1) {
+                exit(99); //TODO
+            }
+            if (response_type == MT_CONFIRM) {
+                free_response(&response);
+                break;
+            }
+        }
+    }
+}
+
+void udp_send_bye_wait_for_confirm() {
+    Command bye_command = {
+            .command_type = CMD_EXIT
+        };
+
+    //TODO: tady se muze udelat while a posilat dokola bye, ale musi se prvni udelat timeout
+
+    if (send_message_from_command(&bye_command, socket_fd, &address, &sm_queue) == 1) {
+        exit(99); //TODO
+    }
+
+    wait_for_confirm();
+}
+
+void udp_send_confirm(uint16_t message_id) {
+    ConfirmMessage confirm_message = {
+        .msg_type = MT_CONFIRM,
+        .ref_message_id = htons(message_id) //prevod na server endianitu
+    };
+
+    int result = sendto(socket_fd,
+                     &confirm_message,
+                     sizeof(confirm_message), 0,
+                     (struct sockaddr *)&address,
+                     sizeof(address));
+    if (result == -1) {
+        clean_up();
+        exit(1);
+    }
+}
+
+void udp_send_error_wait_for_confirm(char *message_content) {
+    ErrMessage error_message = {
+        .msg_type = MT_ERR,
+        .message_id = htons(get_message_id_and_inc()), //prevod na server endianitu
+    };
+
+    error_message.display_name = malloc(strlen(local_display_name) + 1);
+    if (error_message.display_name == NULL) {
+        clean_up();
+        exit(1);
+    }
+
+    strcpy(error_message.display_name, local_display_name);
+
+    error_message.message_content = malloc(strlen(message_content) + 1);
+    if (error_message.message_content == NULL) {
+        free(error_message.message_content);
+        clean_up();
+        exit(1);
+    }
+
+    strcpy(error_message.message_content, message_content);
+
+    int result = sendto(socket_fd,
+                     &error_message,
+                     sizeof(error_message), 0,
+                     (struct sockaddr *)&address,
+                     sizeof(address));
+    if (result == -1) {
+        free(error_message.display_name);
+        free(error_message.message_content);
+        clean_up();
+        exit(1);
+    }
+
+    free(error_message.display_name);
+    free(error_message.message_content);
+
+    wait_for_confirm();
+}
+
+void clean_up() {
+    free(arguments);
+    sm_queue_free(&sm_queue);
+    int epoll_closed = close(epoll_fd);
+    int socket_closed = close(socket_fd);
+    if (epoll_closed != 0 || socket_closed != 0) exit(99);
 }

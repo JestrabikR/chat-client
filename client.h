@@ -3,9 +3,13 @@
 
 #include <netinet/in.h>
 
+void clean_up();
+
 void wait_for_confirm();
 
 void udp_send_bye_wait_for_confirm();
+
+void udp_send_error_wait_for_confirm(char *message_content);
 
 void udp_send_confirm(uint16_t message_id);
 
